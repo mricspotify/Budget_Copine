@@ -185,16 +185,12 @@ html,body{height:100%;background:var(--bg);color:var(--tx);font-family:-apple-sy
       <div class="fsec">
         <label class="fl">Catégorie</label>
         <div class="catg" id="cat-grid"></div>
-        <!-- Remboursement toggle — hidden until a non-revenu cat is picked -->
+        <!-- Remb toggle — rouge=sortie, vert=entrée -->
         <div id="remb-wrap" style="margin-top:10px;display:none">
-          <div class="remb-row" id="remb-row" onclick="toggleRemb()">
-            <div class="remb-left">
-              <div class="remb-dot" id="remb-dot"></div>
-              <span class="remb-label" id="remb-label">Remboursement / retour</span>
-            </div>
-            <span class="remb-badge" id="remb-badge">+Revenu</span>
+          <div style="display:flex;justify-content:flex-end;align-items:center;gap:8px">
+            <span id="remb-label" style="font-size:13px;color:var(--re)">Sortie</span>
+            <button class="toggle off" id="remb-toggle" onclick="toggleRemb()"></button>
           </div>
-          <div style="font-size:11px;color:var(--mu);margin-top:5px;padding:0 2px">Cocher si c'est un remboursement ou un retour article — le montant sera compté comme revenu.</div>
         </div>
       </div>
       <div class="fsec"><label class="fl">Date</label><input class="fi" type="date" id="f-date"></div>
@@ -233,6 +229,10 @@ html,body{height:100%;background:var(--bg);color:var(--tx);font-family:-apple-sy
       <div class="sec">
         <div class="sh" onclick="toggleSection('bon-body')" style="cursor:pointer">Rentrées d'argent<div style="display:flex;gap:8px;align-items:center"><button class="sh-btn" onclick="event.stopPropagation();openBonusModal()">+ Ajouter</button><span id="bon-arrow" style="color:var(--mu);font-size:16px">▾</span></div></div>
         <div id="bon-body"><div id="bonus-list"></div></div>
+      </div>
+      <div class="sec">
+        <div class="sh" onclick="toggleSection('recinc-body')" style="cursor:pointer">Revenus récurrents<div style="display:flex;gap:8px;align-items:center"><button class="sh-btn" onclick="event.stopPropagation();openRecurIncModal()">+ Ajouter</button><span id="recinc-arrow" style="color:var(--mu);font-size:16px">▾</span></div></div>
+        <div id="recinc-body"><div id="recur-inc-list"></div></div>
       </div>
       <div class="sec">
         <div class="sh" onclick="toggleSection('rec-body')" style="cursor:pointer">Dépenses récurrentes<div style="display:flex;gap:8px;align-items:center"><button class="sh-btn" onclick="event.stopPropagation();openRecurModal()">+ Ajouter</button><span id="rec-arrow" style="color:var(--mu);font-size:16px">▾</span></div></div>
@@ -278,8 +278,9 @@ const CAT={
   fixes:       {label:'Fixes',        icon:'🏠', color:'#7F77DD'},
   transport:   {label:'Transport',     icon:'🚗', color:'#378ADD'},
   courses:     {label:'Courses',       icon:'🛒', color:'#1D9E75'},
-  extras_mamie:{label:'Extras Mamie',  icon:'👵', color:'#EF9F27'},
   sante:       {label:'Santé',         icon:'💊', color:'#E24B4A'},
+  extras_mamie:{label:'Extras Mamie',  icon:'👵', color:'#EF9F27'},
+  nooka:       {label:'Nooka',         icon:'🐰', color:'#C46BAD'},
   autre:       {label:'Autre',         icon:'📌', color:'#888780'},
   revenu:      {label:'Revenu',        icon:'💰', color:'#1D9E75'},
 };
@@ -287,15 +288,16 @@ const CAT={
 const SK='bg11_c',SR='br11_c',SI='bi11_c',SB='bb11_c',SL='bl11_c';
 
 // ─── State ────────────────────────────────────
-let expenses=[],recurItems=[],monthInc={},monthBon={},userAccounts=[];
+let expenses=[],recurItems=[],recurIncome=[],monthInc={},monthBon={},userAccounts=[];
 let lastMonth='',offset=0,editId=null,selCatVal=null,histFilt='all',selRecurCat=null,tChart=null;
-let isRemb=false; // remboursement toggle state
+let isRemb=false;
 
 // ─── Persistence ──────────────────────────────
 function save(){
   try{
     localStorage.setItem(SK,JSON.stringify(expenses));
     localStorage.setItem(SR,JSON.stringify(recurItems));
+    localStorage.setItem('bg11_c_rc',JSON.stringify(recurIncome));
     localStorage.setItem(SI,JSON.stringify(monthInc));
     localStorage.setItem(SB,JSON.stringify(monthBon));
     localStorage.setItem(SL,lastMonth);
@@ -307,6 +309,7 @@ function load(){
   try{
     expenses   =JSON.parse(localStorage.getItem(SK))||[];
     recurItems =JSON.parse(localStorage.getItem(SR))||[];
+    recurIncome=JSON.parse(localStorage.getItem('bg11_c_rc'))||[];
     monthInc   =JSON.parse(localStorage.getItem(SI))||{};
     monthBon   =JSON.parse(localStorage.getItem(SB))||{};
     lastMonth  =localStorage.getItem(SL)||'';
@@ -335,14 +338,16 @@ async function supaLoad(){
     if(!r.ok)return false;
     const rows=await r.json();if(!rows||!rows.length)return false;
     const d=rows[0];
-    if(d.expenses)   expenses    =JSON.parse(d.expenses);
-    if(d.month_inc)  monthInc    =JSON.parse(d.month_inc);
-    if(d.month_bon)  monthBon    =JSON.parse(d.month_bon);
-    if(d.recur_items)recurItems  =JSON.parse(d.recur_items);
-    if(d.accounts)   userAccounts=JSON.parse(d.accounts);
-    if(d.last_month) lastMonth   =d.last_month;
+    if(d.expenses)    expenses    =JSON.parse(d.expenses);
+    if(d.month_inc)   monthInc    =JSON.parse(d.month_inc);
+    if(d.month_bon)   monthBon    =JSON.parse(d.month_bon);
+    if(d.recur_items) recurItems  =JSON.parse(d.recur_items);
+    if(d.recur_income)recurIncome =JSON.parse(d.recur_income);
+    if(d.accounts)    userAccounts=JSON.parse(d.accounts);
+    if(d.last_month)  lastMonth   =d.last_month;
     try{
       localStorage.setItem(SK,JSON.stringify(expenses));localStorage.setItem(SR,JSON.stringify(recurItems));
+      localStorage.setItem('bg11_c_rc',JSON.stringify(recurIncome));
       localStorage.setItem(SI,JSON.stringify(monthInc));localStorage.setItem(SB,JSON.stringify(monthBon));
       localStorage.setItem(SL,lastMonth);localStorage.setItem('bg11_c_acc',JSON.stringify(userAccounts));
     }catch(e){}
@@ -389,6 +394,11 @@ function checkMonth(){
     if(!expenses.some(e=>e.date===d&&e.desc===r.desc&&e.recurId===r.id))
       expenses.unshift({id:Date.now().toString()+r.id,date:d,desc:r.desc,amount:r.amount,cat:r.cat,recurId:r.id});
   });
+  recurIncome.filter(r=>r.active).forEach(r=>{
+    if(!monthBon[key])monthBon[key]=[];
+    if(!monthBon[key].some(b=>b.recurId===r.id))
+      monthBon[key].push({desc:r.desc,amount:r.amount,recurId:r.id});
+  });
   save();
   if(!monthInc[key])setTimeout(()=>openSalModal(false),600);
 }
@@ -419,8 +429,9 @@ function calcSaveTotal(){
     const[y,m]=key.split('-').map(Number),mo=m-1;
     const txs=getExp(y,mo);
     const dep=getRealDep(txs).reduce((s,e)=>s+e.amount,0);
+    const rembTxAmt=txs.filter(e=>e.remb===true&&e.cat!=='revenu').reduce((s,e)=>s+e.amount,0);
     const sal=getIncBase(y,mo);
-    if(sal>0)rest+=sal+getBonRemb(y,mo)-dep;
+    if(sal>0)rest+=sal+getBonRemb(y,mo)+rembTxAmt-dep;
   });
   let rentrees=0;
   Object.values(monthBon).forEach(bons=>bons.forEach(b=>{if(!b.desc.toLowerCase().includes('rembours'))rentrees+=b.amount;}));
@@ -454,10 +465,9 @@ function renderDash(){
 
   const cats=Object.entries(by).filter(([k,v])=>v>0&&k!=='revenu').sort((a,b)=>b[1]-a[1]);
   const cc=document.getElementById('cat-cards');
-  if(!cats.length){cc.innerHTML='';}else{
-    const cols=cats.length>=3?4:cats.length;
-    cc.innerHTML='<div style="display:grid;grid-template-columns:repeat('+cols+',1fr);gap:8px">'+cats.map(([k,v])=>{const c=CAT[k];return '<div class="card tap" onclick="openCatPop(\''+k+'\','+y+','+m+')" style="text-align:center;padding:11px 8px"><div style="font-size:20px;margin-bottom:3px">'+c.icon+'</div><div style="font-size:10px;color:var(--mu);text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px">'+c.label+'</div><div style="font-size:14px;font-weight:600;color:'+c.color+'">'+fa(v)+'</div></div>';}).join('')+'</div>';
-  }
+  const mkCC=(k)=>{const c=CAT[k],v=by[k]||0;return '<div class="card tap" onclick="openCatPop(\''+k+'\','+y+','+m+')" style="text-align:center;padding:11px 8px"><div style="font-size:20px;margin-bottom:3px">'+c.icon+'</div><div style="font-size:10px;color:var(--mu);text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px">'+c.label+'</div><div style="font-size:14px;font-weight:600;color:'+(v>0?c.color:'var(--mu)')+'">'+fa(v)+'</div></div>';};
+  cc.innerHTML='<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:8px">'+['fixes','transport','courses','sante'].map(mkCC).join('')+'</div>'+
+    '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">'+['extras_mamie','nooka','autre'].map(mkCC).join('')+'</div>';
   const maxV=Math.max(...cats.map(([,v])=>v),1);
   document.getElementById('breakdown').innerHTML=cats.map(([k,v])=>{const c=CAT[k],pct=Math.round(v/maxV*100);return '<div class="brow"><div class="bdot" style="background:'+c.color+'"></div><span class="bname">'+c.label+'</span><div class="btrack"><div class="bbar" style="background:'+c.color+';width:'+pct+'%"></div></div><span class="bamt" style="color:'+c.color+'">'+fa(v)+'</span></div>';}).join('');
   renderTrend(y,m);
@@ -530,15 +540,14 @@ function pickCat(btn,cat){
   document.querySelectorAll('#cat-grid .catb').forEach(b=>b.classList.remove('sel'));
   btn.classList.add('sel');
   selCatVal=cat;
-  // Show/hide remb toggle
   const wrap=document.getElementById('remb-wrap');
   if(cat==='revenu'){
     wrap.style.display='none';
     isRemb=false;
-    updateRembUI();
   } else {
     wrap.style.display='block';
   }
+  updateRembUI();
 }
 
 function toggleRemb(){
@@ -547,20 +556,17 @@ function toggleRemb(){
 }
 
 function updateRembUI(){
-  const dot=document.getElementById('remb-dot');
-  const label=document.getElementById('remb-label');
-  const badge=document.getElementById('remb-badge');
-  const row=document.getElementById('remb-row');
+  const btn=document.getElementById('remb-toggle');
+  const lbl=document.getElementById('remb-label');
+  if(!btn)return;
   if(isRemb){
-    dot.classList.add('checked');
-    label.classList.add('active');
-    badge.classList.add('show');
-    row.classList.add('active');
+    btn.classList.remove('off');btn.classList.add('on');
+    btn.style.background='var(--te)';
+    if(lbl){lbl.textContent='Entrée';lbl.style.color='var(--te)';}
   } else {
-    dot.classList.remove('checked');
-    label.classList.remove('active');
-    badge.classList.remove('show');
-    row.classList.remove('active');
+    btn.classList.remove('on');btn.classList.add('off');
+    btn.style.background='var(--re)';
+    if(lbl){lbl.textContent='Sortie';lbl.style.color='var(--re)';}
   }
 }
 
@@ -680,8 +686,9 @@ function renderSave(){
     const[y,m]=key.split('-').map(Number),mo=m-1;
     const txs=getExp(y,mo);
     const dep=getRealDep(txs).reduce((s,e)=>s+e.amount,0);
+    const rembTxAmt=txs.filter(e=>e.remb===true&&e.cat!=='revenu').reduce((s,e)=>s+e.amount,0);
     const sal=getIncBase(y,mo);
-    if(sal>0){const reste=sal+getBonRemb(y,mo)-dep;resteTotal+=reste;resteParMois.push({key,y,m:mo,reste});}
+    if(sal>0){const reste=sal+getBonRemb(y,mo)+rembTxAmt-dep;resteTotal+=reste;resteParMois.push({key,y,m:mo,reste});}
   });
   const rentreesMap={};
   Object.entries(monthBon).forEach(([k,bons])=>bons.forEach(b=>{
@@ -759,6 +766,7 @@ function openInvAS(idx){
 let selAccType='banque';
 function openAccountModal(editIdx){
   const acc=editIdx!==undefined?userAccounts[editIdx]:null;
+  if(acc) selAccType=acc.type;
   document.body.insertAdjacentHTML('beforeend',
     '<div class="overlay" id="accpop" onclick="if(event.target.id===\'accpop\')this.remove()"><div class="modal"><div class="modal-title">'+(acc?'Modifier le compte':'Nouveau compte')+'</div>'+
     '<div class="fsec" style="margin-bottom:10px"><label class="fl">Nom du compte</label><input class="fi" type="text" id="acc-name" placeholder="Ex: BNP, Livret A" value="'+(acc?acc.name:'')+'"></div>'+
@@ -790,6 +798,7 @@ function renderSet(){
   document.getElementById('inc-list').innerHTML=entries.length?entries.map(([k,v])=>{const[y,m]=k.split('-');return '<div class="incrow"><div><div style="font-size:13px">'+MONTHS[parseInt(m)-1]+' '+y+'</div></div><div style="display:flex;align-items:center;gap:8px"><span style="font-size:13px;font-weight:600;color:var(--te)">'+fa(v)+'</span><button class="smb" onclick="editInc(\''+k+'\','+v+')">Modifier</button></div></div>';}).join(''):'<div style="color:var(--mu);font-size:13px;padding:8px 0">Aucun revenu</div>';
   const bEntries=[];Object.entries(monthBon).forEach(([k,bons])=>bons.forEach((b,i)=>bEntries.push({key:k,b,i})));bEntries.sort((a,b)=>b.key.localeCompare(a.key));
   document.getElementById('bonus-list').innerHTML=bEntries.length?bEntries.map(({key,b,i})=>{const[y,m]=key.split('-');return '<div class="incrow"><div><div style="font-size:13px">'+b.desc+'</div><div style="font-size:11px;color:var(--mu)">'+MONTHS[parseInt(m)-1]+' '+y+'</div></div><div style="display:flex;align-items:center;gap:8px"><span style="font-size:13px;font-weight:600;color:var(--te)">+'+fa(b.amount)+'</span><button class="smb" onclick="editBonus(\''+key+'\','+i+')">Modifier</button></div></div>';}).join(''):'<div style="color:var(--mu);font-size:13px;padding:8px 0">Aucune rentrée</div>';
+  document.getElementById('recur-inc-list').innerHTML=recurIncome.length?recurIncome.map(r=>'<div class="recur-item"><div style="font-size:18px">💸</div><div class="recur-info"><div class="recur-name">'+r.desc+'</div><div class="recur-amt">+'+fa(r.amount)+' · mensuel</div></div><div style="display:flex;gap:6px;align-items:center"><button class="txmenu" onclick="openRecurIncAS(\''+r.id+'\',event)">···</button><button class="toggle '+(r.active?'on':'off')+'" onclick="toggleRecurInc(\''+r.id+'\')"></button></div></div>').join(''):'<div style="color:var(--mu);font-size:13px;padding:8px 0">Aucun revenu récurrent</div>';
   document.getElementById('recur-list').innerHTML=recurItems.map(r=>'<div class="recur-item"><div style="font-size:18px">'+(CAT[r.cat]?.icon||'📌')+'</div><div class="recur-info"><div class="recur-name">'+r.desc+'</div><div class="recur-amt">'+fa(r.amount)+' · '+(CAT[r.cat]?.label||'Autre')+'</div></div><div style="display:flex;gap:6px;align-items:center"><button class="txmenu" onclick="openRecurAS(\''+r.id+'\',event)">···</button><button class="toggle '+(r.active?'on':'off')+'" onclick="toggleRecur(\''+r.id+'\')"></button></div></div>').join('');
 }
 function editInc(key,cur){
@@ -831,13 +840,29 @@ function openRecurAS(id,ev){ev.stopPropagation();document.body.insertAdjacentHTM
 function delRecur(id){if(!confirm('Supprimer ?'))return;recurItems=recurItems.filter(r=>r.id!==id);save();renderSet();}
 function toggleRecur(id){const r=recurItems.find(x=>x.id===id);if(r){r.active=!r.active;save();renderSet();}}
 
+function openRecurIncModal(){
+  document.body.insertAdjacentHTML('beforeend','<div class="overlay" id="recincpop" onclick="if(event.target.id===\'recincpop\')this.remove()"><div class="modal"><div class="modal-title">Nouveau revenu récurrent</div><div class="fsec" style="margin-bottom:10px"><label class="fl">Description</label><input class="fi" type="text" id="recinc-desc" placeholder="Ex: Allocation, Virement..."></div><div class="fsec" style="margin-bottom:10px"><label class="fl">Montant (€)</label><input class="fi" type="number" id="recinc-amt" placeholder="0.00" inputmode="decimal"></div><button class="btnp" onclick="saveRecurInc()">Ajouter</button><button onclick="document.getElementById(\'recincpop\').remove()" style="width:100%;background:none;border:none;color:var(--mu);padding:12px;cursor:pointer;font-family:inherit;font-size:14px;margin-top:4px">Annuler</button></div></div>');
+}
+function saveRecurInc(){
+  const desc=document.getElementById('recinc-desc').value.trim(),amt=parseFloat(document.getElementById('recinc-amt').value);
+  if(!desc||!amt){showToast('Remplis tous les champs');return;}
+  recurIncome.push({id:'ri'+Date.now(),desc,amount:amt,active:true});
+  save();document.getElementById('recincpop').remove();renderSet();showToast('Revenu récurrent ajouté ✓');
+}
+function toggleRecurInc(id){const r=recurIncome.find(x=>x.id===id);if(r){r.active=!r.active;save();renderSet();}}
+function delRecurInc(id){if(!confirm('Supprimer ?'))return;recurIncome=recurIncome.filter(r=>r.id!==id);save();renderSet();}
+function openRecurIncAS(id,ev){
+  ev.stopPropagation();
+  document.body.insertAdjacentHTML('beforeend','<div class="as" id="xrias" onclick="if(event.target.classList.contains(\'as-bg\'))document.getElementById(\'xrias\').remove()"><div class="as-bg"></div><div class="as-box"><div class="as-item" style="color:var(--re)" onclick="document.getElementById(\'xrias\').remove();delRecurInc(\''+id+'\')"><span style="font-size:18px">🗑️</span><span>Supprimer</span></div><button class="as-cancel" onclick="document.getElementById(\'xrias\').remove()">Annuler</button></div></div>');
+}
+
 function resetAll(){
   if(!confirm('Supprimer TOUTES les données ?'))return;
   expenses=[];recurItems=[];monthInc={};monthBon={};lastMonth='';userAccounts=[];
   save();renderDash();renderSet();renderSave();showToast('Réinitialisé');
 }
 function exportData(){
-  const blob=new Blob([JSON.stringify({expenses,monthInc,monthBon,recurItems,accounts:userAccounts},null,2)],{type:'application/json'});
+  const blob=new Blob([JSON.stringify({expenses,monthInc,monthBon,recurItems,recurIncome,accounts:userAccounts},null,2)],{type:'application/json'});
   const url=URL.createObjectURL(blob),a=document.createElement('a');
   a.href=url;a.download='monbudget_copine_backup.json';document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);
   showToast('Export téléchargé ✓');
@@ -848,11 +873,12 @@ function importData(input){
   reader.onload=e=>{
     try{
       const data=JSON.parse(e.target.result);
-      if(data.expenses)   expenses    =data.expenses;
-      if(data.monthInc)   monthInc    =data.monthInc;
-      if(data.monthBon)   monthBon    =data.monthBon;
-      if(data.recurItems) recurItems  =data.recurItems;
-      if(data.accounts)   userAccounts=data.accounts;
+      if(data.expenses)    expenses    =data.expenses;
+      if(data.monthInc)    monthInc    =data.monthInc;
+      if(data.monthBon)    monthBon    =data.monthBon;
+      if(data.recurItems)  recurItems  =data.recurItems;
+      if(data.recurIncome) recurIncome =data.recurIncome;
+      if(data.accounts)    userAccounts=data.accounts;
       save();
       supaSave().then(()=>showToast('Données importées et sauvegardées ✓'));
       renderDash();renderSet();renderSave();buildFilter();
@@ -867,7 +893,7 @@ async function init(){
   renderDash();renderSet();renderSave();buildFilter();buildCatGrid();
   document.getElementById('f-date').value=new Date().toISOString().split('T')[0];
   const loaded=await supaLoad();
-  checkMonth();renderDash();renderSet();renderSave();buildFilter();
+  checkMonth();renderDash();renderSet();renderSave();buildFilter();buildCatGrid();
   if(loaded)showToast('Données chargées ✓');
 }
 init();
