@@ -6,17 +6,17 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Mon Budget">
-<meta name="theme-color" content="#0c0c10">
+<meta name="theme-color" content="#F5F5FA">
 <title>Mon Budget</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 :root{
---bg:#0c0c10;--s1:#14141c;--s2:#1c1c28;--s3:#242434;
---b:rgba(255,255,255,0.07);--b2:rgba(255,255,255,0.13);
---tx:#eeeef5;--mu:rgba(238,238,245,0.4);--mu2:rgba(238,238,245,0.62);
---pu:#C46BAD;--pudim:rgba(196,107,173,0.15);--pubor:rgba(196,107,173,0.35);
+--bg:#F5F5FA;--s1:#FFFFFF;--s2:#EDEDF5;--s3:#E4E4EF;
+--b:rgba(0,0,0,0.07);--b2:rgba(0,0,0,0.12);
+--tx:#1A1A2E;--mu:rgba(26,26,46,0.42);--mu2:rgba(26,26,46,0.62);
+--pu:#C46BAD;--pudim:rgba(196,107,173,0.10);--pubor:rgba(196,107,173,0.30);
 --te:#1D9E75;--am:#EF9F27;--co:#D85A30;--bl:#378ADD;--re:#E24B4A;
---redim:rgba(226,75,74,0.15);
+--redim:rgba(226,75,74,0.10);
 }
 html,body{height:100%;background:var(--bg);color:var(--tx);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;overflow:hidden}
 .app{display:flex;flex-direction:column;height:100vh;height:100dvh;max-width:480px;margin:0 auto}
@@ -227,10 +227,6 @@ html,body{height:100%;background:var(--bg);color:var(--tx);font-family:-apple-sy
         <div id="inc-body"><div id="inc-list"></div></div>
       </div>
       <div class="sec">
-        <div class="sh" onclick="toggleSection('bon-body')" style="cursor:pointer">Rentrées d'argent<div style="display:flex;gap:8px;align-items:center"><button class="sh-btn" onclick="event.stopPropagation();openBonusModal()">+ Ajouter</button><span id="bon-arrow" style="color:var(--mu);font-size:16px">▾</span></div></div>
-        <div id="bon-body"><div id="bonus-list"></div></div>
-      </div>
-      <div class="sec">
         <div class="sh" onclick="toggleSection('recinc-body')" style="cursor:pointer">Revenus récurrents<div style="display:flex;gap:8px;align-items:center"><button class="sh-btn" onclick="event.stopPropagation();openRecurIncModal()">+ Ajouter</button><span id="recinc-arrow" style="color:var(--mu);font-size:16px">▾</span></div></div>
         <div id="recinc-body"><div id="recur-inc-list"></div></div>
       </div>
@@ -327,7 +323,7 @@ async function supaSave(){
       method:'POST',
       headers:{'Content-Type':'application/json','apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY,'Prefer':'resolution=merge-duplicates'},
       // use id=2 for copine to keep separate from main user
-      body:JSON.stringify({id:2,expenses:JSON.stringify(expenses),month_inc:JSON.stringify(monthInc),month_bon:JSON.stringify(monthBon),recur_items:JSON.stringify(recurItems),accounts:JSON.stringify(userAccounts),last_month:lastMonth})
+      body:JSON.stringify({id:2,expenses:JSON.stringify(expenses),month_inc:JSON.stringify(monthInc),month_bon:JSON.stringify(monthBon),recur_items:JSON.stringify(recurItems),recur_income:JSON.stringify(recurIncome),accounts:JSON.stringify(userAccounts),last_month:lastMonth})
     });
     if(!r.ok)console.warn('supaSave',r.status);
   }catch(e){console.warn('supaSave',e);}
@@ -363,21 +359,24 @@ function getIncBase(y,m){return parseFloat(monthInc[mk(y,m)])||0;}
 function getInc(y,m){
   const txs=getExp(y,m);
   const revAmt=txs.filter(e=>e.cat==='revenu').reduce((s,e)=>s+e.amount,0);
-  const rembAmt=txs.filter(e=>e.remb===true&&e.cat!=='revenu').reduce((s,e)=>s+e.amount,0);
-  return getIncBase(y,m)+revAmt+rembAmt;
+  return getIncBase(y,m)+revAmt;
 }
 
-function getBonRemb(y,m){return(monthBon[mk(y,m)]||[]).filter(b=>b.desc.toLowerCase().includes('rembours')).reduce((s,b)=>s+b.amount,0);}
+
 function getExp(y,m){return expenses.filter(e=>{const d=new Date(e.date);return d.getFullYear()===y&&d.getMonth()===m;});}
 
 // dépenses réelles = sans cat=revenu, sans remb=true
 function getRealDep(txs){return txs.filter(e=>e.cat!=='revenu'&&!e.remb);}
 
 function sumCat(txs){
-  // Only sum real expenses (not revenu, not remb)
-  const b={};Object.keys(CAT).forEach(k=>b[k]=0);
-  getRealDep(txs).forEach(e=>{b[e.cat]!==undefined?b[e.cat]+=e.amount:b.autre+=e.amount;});
-  return b;
+  const gross={},remb={};
+  Object.keys(CAT).forEach(k=>{gross[k]=0;remb[k]=0;});
+  txs.filter(e=>e.cat!=='revenu').forEach(e=>{
+    const k=CAT[e.cat]?e.cat:'autre';
+    if(e.remb)remb[k]+=e.amount;else gross[k]+=e.amount;
+  });
+  const net={};Object.keys(CAT).forEach(k=>net[k]=gross[k]-remb[k]);
+  return net;
 }
 function fa(n){return parseFloat(n).toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2})+' €';}
 function fr(n){return Math.round(n).toLocaleString('fr-FR')+' €';}
@@ -401,6 +400,7 @@ function checkMonth(){
   });
   save();
   if(!monthInc[key])setTimeout(()=>openSalModal(false),600);
+  else setTimeout(()=>openBackupModal(),800);
 }
 
 // ─── Navigation ───────────────────────────────
@@ -424,18 +424,18 @@ function getAllMonths(){
   return [...s].sort();
 }
 function calcSaveTotal(){
-  let rest=0;
+  let total=0;
   getAllMonths().forEach(key=>{
     const[y,m]=key.split('-').map(Number),mo=m-1;
     const txs=getExp(y,mo);
-    const dep=getRealDep(txs).reduce((s,e)=>s+e.amount,0);
-    const rembTxAmt=txs.filter(e=>e.remb===true&&e.cat!=='revenu').reduce((s,e)=>s+e.amount,0);
     const sal=getIncBase(y,mo);
-    if(sal>0)rest+=sal+getBonRemb(y,mo)+rembTxAmt-dep;
+    const revAmt=txs.filter(e=>e.cat==='revenu').reduce((s,e)=>s+e.amount,0);
+    const grossDep=txs.filter(e=>e.cat!=='revenu'&&!e.remb).reduce((s,e)=>s+e.amount,0);
+    const rembAmt=txs.filter(e=>e.remb===true&&e.cat!=='revenu').reduce((s,e)=>s+e.amount,0);
+    total+=sal+revAmt-(grossDep-rembAmt);
   });
-  let rentrees=0;
-  Object.values(monthBon).forEach(bons=>bons.forEach(b=>{if(!b.desc.toLowerCase().includes('rembours'))rentrees+=b.amount;}));
-  return rest+rentrees+userAccounts.reduce((s,a)=>s+a.balance,0);
+  Object.values(monthBon).forEach(bons=>bons.forEach(b=>total+=b.amount));
+  return total+userAccounts.reduce((s,a)=>s+a.balance,0);
 }
 
 // ─── Dashboard ────────────────────────────────
@@ -445,27 +445,21 @@ function renderDash(){
   document.getElementById('dash-month').textContent=lbl;
   document.getElementById('tsub').textContent=lbl;
   const txs=getExp(y,m);
-  const realDep=getRealDep(txs);
-  const total=realDep.reduce((s,e)=>s+e.amount,0);
-  const revAmt=txs.filter(e=>e.cat==='revenu').reduce((s,e)=>s+e.amount,0);
-  const rembAmt=txs.filter(e=>e.remb===true&&e.cat!=='revenu').reduce((s,e)=>s+e.amount,0);
-  const sal=getIncBase(y,m),incTotal=sal+revAmt+rembAmt;
-  const rest=incTotal-total;
   const by=sumCat(txs);
+  const total=Object.values(by).reduce((s,v)=>s+v,0);
+  const revAmt=txs.filter(e=>e.cat==='revenu').reduce((s,e)=>s+e.amount,0);
+  const sal=getIncBase(y,m),incTotal=sal+revAmt;
+  const rest=incTotal-total;
 
   document.getElementById('d-inc').textContent=incTotal>0?fa(incTotal):'— €';
   document.getElementById('d-dep').textContent=fa(total);
   const re=document.getElementById('d-rest');re.textContent=fa(rest);re.style.color=rest>=0?'var(--te)':'var(--re)';
   document.getElementById('d-save').textContent=fr(calcSaveTotal());
-
-  // Bonuses + remboursements in the revenue card
-  const bonLines=(monthBon[mk(y,m)]||[]).map(b=>`<div style="font-size:11px;color:var(--te);margin-top:3px">+${fa(b.amount)} ${b.desc}</div>`).join('');
-  const rembLines=rembAmt>0?`<div style="font-size:11px;color:var(--te);margin-top:3px">+${fa(rembAmt)} remboursements</div>`:'';
-  document.getElementById('d-bonuses').innerHTML=bonLines+rembLines;
+  document.getElementById('d-bonuses').innerHTML='';
 
   const cats=Object.entries(by).filter(([k,v])=>v>0&&k!=='revenu').sort((a,b)=>b[1]-a[1]);
   const cc=document.getElementById('cat-cards');
-  const mkCC=(k)=>{const c=CAT[k],v=by[k]||0;return '<div class="card tap" onclick="openCatPop(\''+k+'\','+y+','+m+')" style="text-align:center;padding:11px 8px"><div style="font-size:20px;margin-bottom:3px">'+c.icon+'</div><div style="font-size:10px;color:var(--mu);text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px">'+c.label+'</div><div style="font-size:14px;font-weight:600;color:'+(v>0?c.color:'var(--mu)')+'">'+fa(v)+'</div></div>';};
+  const mkCC=(k)=>{const c=CAT[k],v=by[k]||0;const vc=v>0?c.color:v<0?'var(--te)':'var(--mu)';return '<div class="card tap" onclick="openCatPop(\''+k+'\','+y+','+m+')" style="text-align:center;padding:11px 8px"><div style="font-size:20px;margin-bottom:3px">'+c.icon+'</div><div style="font-size:10px;color:var(--mu);text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px">'+c.label+'</div><div style="font-size:14px;font-weight:600;color:'+vc+'">'+fa(v)+'</div></div>';};
   cc.innerHTML='<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:8px">'+['fixes','transport','courses','sante'].map(mkCC).join('')+'</div>'+
     '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">'+['extras_mamie','nooka','autre'].map(mkCC).join('')+'</div>';
   const maxV=Math.max(...cats.map(([,v])=>v),1);
@@ -479,12 +473,10 @@ function openRevenuPop(){
   const y=ref.getFullYear(),m=ref.getMonth(),sal=getIncBase(y,m);
   const txs=getExp(y,m);
   const revTxs=txs.filter(e=>e.cat==='revenu').sort((a,b)=>new Date(b.date)-new Date(a.date));
-  const rembTxs=txs.filter(e=>e.remb===true&&e.cat!=='revenu').sort((a,b)=>new Date(b.date)-new Date(a.date));
-  const total=sal+revTxs.reduce((s,e)=>s+e.amount,0)+rembTxs.reduce((s,e)=>s+e.amount,0);
+  const total=sal+revTxs.reduce((s,e)=>s+e.amount,0);
   const rows=[
     sal>0?`<div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:0.5px solid var(--b)"><div><div style="font-size:13px;font-weight:500">Salaire</div><div style="font-size:11px;color:var(--mu)">Revenu de base</div></div><span style="font-size:13px;font-weight:600;color:var(--bl)">${fa(sal)}</span></div>`:'',
-    ...revTxs.map(e=>{const d=new Date(e.date);return `<div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:0.5px solid var(--b)"><div><div style="font-size:13px;font-weight:500">${e.desc}</div><div style="font-size:11px;color:var(--mu)">${d.getDate().toString().padStart(2,'0')} ${MS[d.getMonth()]} · Gain ponctuel</div></div><span style="font-size:13px;font-weight:600;color:var(--te)">+${fa(e.amount)}</span></div>`;}),
-    ...rembTxs.map(e=>{const d=new Date(e.date),cat=CAT[e.cat]||CAT.autre;return `<div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:0.5px solid var(--b)"><div><div style="font-size:13px;font-weight:500">${e.desc}</div><div style="font-size:11px;color:var(--mu)">${d.getDate().toString().padStart(2,'0')} ${MS[d.getMonth()]} · Remboursement ${cat.label}</div></div><span style="font-size:13px;font-weight:600;color:var(--te)">+${fa(e.amount)}</span></div>`;})
+    ...revTxs.map(e=>{const d=new Date(e.date);return `<div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:0.5px solid var(--b)"><div><div style="font-size:13px;font-weight:500">${e.desc}</div><div style="font-size:11px;color:var(--mu)">${d.getDate().toString().padStart(2,'0')} ${MS[d.getMonth()]} · Revenu</div></div><span style="font-size:13px;font-weight:600;color:var(--te)">+${fa(e.amount)}</span></div>`;})
   ].filter(Boolean).join('');
   document.body.insertAdjacentHTML('beforeend',
     '<div class="overlay" id="revpop" onclick="if(event.target.id===\'revpop\')this.remove()"><div class="modal">'+
@@ -520,13 +512,14 @@ function renderTrend(cy,cm){
   const labels=[],dep=[],sav=[];
   for(let i=5;i>=0;i--){
     const d=new Date(cy,cm-i,1),y2=d.getFullYear(),m2=d.getMonth(),txs=getExp(y2,m2);
-    const depAmt=getRealDep(txs).reduce((s,e)=>s+e.amount,0);
-    const revAmt=txs.filter(e=>e.cat==='revenu').reduce((s,e)=>s+e.amount,0);
+    const grossDep=txs.filter(e=>e.cat!=='revenu'&&!e.remb).reduce((s,e)=>s+e.amount,0);
     const rembAmt=txs.filter(e=>e.remb===true&&e.cat!=='revenu').reduce((s,e)=>s+e.amount,0);
-    labels.push(MS[m2]);dep.push(parseFloat(depAmt.toFixed(2)));
-    sav.push(parseFloat((getIncBase(y2,m2)+revAmt+rembAmt-depAmt).toFixed(2)));
+    const netDep=grossDep-rembAmt;
+    const revAmt=txs.filter(e=>e.cat==='revenu').reduce((s,e)=>s+e.amount,0);
+    labels.push(MS[m2]);dep.push(parseFloat(netDep.toFixed(2)));
+    sav.push(parseFloat((getIncBase(y2,m2)+revAmt-netDep).toFixed(2)));
   }
-  const opts=(data,color)=>({type:'bar',data:{labels,datasets:[{data,backgroundColor:data.map(v=>v>=0?color:'rgba(226,75,74,0.7)'),borderRadius:6,borderSkipped:false}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:{color:'rgba(238,238,245,0.38)',font:{size:11}},border:{display:false}},y:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'rgba(238,238,245,0.38)',font:{size:10},callback:v=>v+'€'},border:{display:false}}}}});
+  const opts=(data,color)=>({type:'bar',data:{labels,datasets:[{data,backgroundColor:data.map(v=>v>=0?color:'rgba(226,75,74,0.7)'),borderRadius:6,borderSkipped:false}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:{color:'rgba(26,26,46,0.38)',font:{size:11}},border:{display:false}},y:{grid:{color:'rgba(0,0,0,0.05)'},ticks:{color:'rgba(26,26,46,0.38)',font:{size:10},callback:v=>v+'€'},border:{display:false}}}}});
   try{if(tChart)tChart.destroy();tChart=new Chart(c1.getContext('2d'),opts(dep,'rgba(196,107,173,0.75)'));}catch(e){}
   try{if(window.sChart)window.sChart.destroy();window.sChart=new Chart(c2.getContext('2d'),opts(sav,'rgba(29,158,117,0.75)'));}catch(e){}
 }
@@ -662,7 +655,7 @@ function renderHist(){
     const depTotal=getRealDep(sorted).reduce((s,e)=>s+e.amount,0);
     const rembAmt=sorted.filter(e=>e.remb&&e.cat!=='revenu').reduce((s,e)=>s+e.amount,0);
     const revAmt=sorted.filter(e=>e.cat==='revenu').reduce((s,e)=>s+e.amount,0);
-    const sal=getIncBase(g.y,g.m),eco=sal>0?Math.max(0,sal+revAmt+rembAmt-depTotal):null;
+    const sal=getIncBase(g.y,g.m),eco=sal>0?(sal+revAmt-(depTotal-rembAmt)):null;
     const border=eco!==null&&eco>0?'var(--te)':'var(--co)';
     return '<div style="margin-bottom:18px"><div class="mhrow"><span class="mhtitle">'+g.lbl+'</span><span class="mhmeta">'+fa(depTotal)+(eco!==null?' · <span style="color:var(--te)">'+fa(eco)+' épargnés</span>':'')+'</span></div>'+
       '<div class="txlist" style="border-left:2.5px solid '+border+'">'+
@@ -685,14 +678,15 @@ function renderSave(){
   getAllMonths().forEach(key=>{
     const[y,m]=key.split('-').map(Number),mo=m-1;
     const txs=getExp(y,mo);
-    const dep=getRealDep(txs).reduce((s,e)=>s+e.amount,0);
-    const rembTxAmt=txs.filter(e=>e.remb===true&&e.cat!=='revenu').reduce((s,e)=>s+e.amount,0);
     const sal=getIncBase(y,mo);
-    if(sal>0){const reste=sal+getBonRemb(y,mo)+rembTxAmt-dep;resteTotal+=reste;resteParMois.push({key,y,m:mo,reste});}
+    const revAmt=txs.filter(e=>e.cat==='revenu').reduce((s,e)=>s+e.amount,0);
+    const grossDep=txs.filter(e=>e.cat!=='revenu'&&!e.remb).reduce((s,e)=>s+e.amount,0);
+    const rembAmt=txs.filter(e=>e.remb===true&&e.cat!=='revenu').reduce((s,e)=>s+e.amount,0);
+    const reste=sal+revAmt-(grossDep-rembAmt);
+    resteTotal+=reste;resteParMois.push({key,y,m:mo,reste});
   });
   const rentreesMap={};
   Object.entries(monthBon).forEach(([k,bons])=>bons.forEach(b=>{
-    if(b.desc.toLowerCase().includes('rembours'))return;
     if(!rentreesMap[b.desc])rentreesMap[b.desc]={total:0,items:[]};
     const[y,mo]=k.split('-');
     rentreesMap[b.desc].total+=b.amount;
@@ -732,7 +726,7 @@ function openSavePop(type,desc){
     title='💵 Reste accumulé';sub='Salaire − dépenses de chaque mois';color='var(--te)';
     const sorted=(d.resteParMois||[]).slice().reverse();
     total=sorted.reduce((s,r)=>s+r.reste,0);
-    items=sorted.map(({y,m,reste})=>({label:MONTHS[m]+' '+y,sub:'Salaire − dépenses',amt:(reste>=0?'+':'')+fa(reste),color:reste>=0?'var(--te)':'var(--re)'}));
+    items=sorted.map(({y,m,reste})=>({label:MONTHS[m]+' '+y,sub:'Revenus − dépenses nettes',amt:(reste>=0?'+':'')+fa(reste),color:reste>=0?'var(--te)':'var(--re)'}));
   } else if(type==='rentree'){
     const data=(d.rentreesMap||{})[desc]||{total:0,items:[]};
     title='💸 '+desc;sub='Rentrée exceptionnelle';color='var(--bl)';total=data.total;
@@ -796,8 +790,6 @@ function renderSet(){
   document.getElementById('s-count').textContent=expenses.length;
   const entries=Object.entries(monthInc).sort((a,b)=>b[0].localeCompare(a[0]));
   document.getElementById('inc-list').innerHTML=entries.length?entries.map(([k,v])=>{const[y,m]=k.split('-');return '<div class="incrow"><div><div style="font-size:13px">'+MONTHS[parseInt(m)-1]+' '+y+'</div></div><div style="display:flex;align-items:center;gap:8px"><span style="font-size:13px;font-weight:600;color:var(--te)">'+fa(v)+'</span><button class="smb" onclick="editInc(\''+k+'\','+v+')">Modifier</button></div></div>';}).join(''):'<div style="color:var(--mu);font-size:13px;padding:8px 0">Aucun revenu</div>';
-  const bEntries=[];Object.entries(monthBon).forEach(([k,bons])=>bons.forEach((b,i)=>bEntries.push({key:k,b,i})));bEntries.sort((a,b)=>b.key.localeCompare(a.key));
-  document.getElementById('bonus-list').innerHTML=bEntries.length?bEntries.map(({key,b,i})=>{const[y,m]=key.split('-');return '<div class="incrow"><div><div style="font-size:13px">'+b.desc+'</div><div style="font-size:11px;color:var(--mu)">'+MONTHS[parseInt(m)-1]+' '+y+'</div></div><div style="display:flex;align-items:center;gap:8px"><span style="font-size:13px;font-weight:600;color:var(--te)">+'+fa(b.amount)+'</span><button class="smb" onclick="editBonus(\''+key+'\','+i+')">Modifier</button></div></div>';}).join(''):'<div style="color:var(--mu);font-size:13px;padding:8px 0">Aucune rentrée</div>';
   document.getElementById('recur-inc-list').innerHTML=recurIncome.length?recurIncome.map(r=>'<div class="recur-item"><div style="font-size:18px">💸</div><div class="recur-info"><div class="recur-name">'+r.desc+'</div><div class="recur-amt">+'+fa(r.amount)+' · mensuel</div></div><div style="display:flex;gap:6px;align-items:center"><button class="txmenu" onclick="openRecurIncAS(\''+r.id+'\',event)">···</button><button class="toggle '+(r.active?'on':'off')+'" onclick="toggleRecurInc(\''+r.id+'\')"></button></div></div>').join(''):'<div style="color:var(--mu);font-size:13px;padding:8px 0">Aucun revenu récurrent</div>';
   document.getElementById('recur-list').innerHTML=recurItems.map(r=>'<div class="recur-item"><div style="font-size:18px">'+(CAT[r.cat]?.icon||'📌')+'</div><div class="recur-info"><div class="recur-name">'+r.desc+'</div><div class="recur-amt">'+fa(r.amount)+' · '+(CAT[r.cat]?.label||'Autre')+'</div></div><div style="display:flex;gap:6px;align-items:center"><button class="txmenu" onclick="openRecurAS(\''+r.id+'\',event)">···</button><button class="toggle '+(r.active?'on':'off')+'" onclick="toggleRecur(\''+r.id+'\')"></button></div></div>').join('');
 }
@@ -812,7 +804,7 @@ function openSalModal(fromSet){
   document.body.insertAdjacentHTML('beforeend','<div class="saloverlay" id="salover" onclick="if(event.target.id===\'salover\')this.remove()"><div class="salmodal"><div class="salemoji">💰</div><div class="saltitle">'+(fromSet?'Ajouter un revenu':'Nouveau mois !')+'</div><div class="salsub">'+MONTHS[m]+' '+y+' — Quel est ton salaire ?</div><input class="salinput" type="number" id="salin" placeholder="1500" inputmode="decimal" value="'+(ex||'')+'"><div class="salhint">Modifiable à tout moment dans Réglages</div><button class="btnp" onclick="saveSal('+y+','+m+')">Confirmer</button>'+(fromSet?'<button onclick="document.getElementById(\'salover\').remove()" style="width:100%;background:none;border:none;color:var(--mu);padding:12px;cursor:pointer;font-family:inherit;font-size:14px;margin-top:4px">Annuler</button>':'')+'</div></div>');
   setTimeout(()=>document.getElementById('salin').focus(),100);
 }
-function saveSal(y,m){const v=parseFloat(document.getElementById('salin').value);if(!v||v<=0){showToast('Montant invalide');return;}monthInc[mk(y,m)]=v;save();document.getElementById('salover').remove();renderDash();renderSet();showToast('Revenu enregistré ✓');}
+function saveSal(y,m){const v=parseFloat(document.getElementById('salin').value);if(!v||v<=0){showToast('Montant invalide');return;}monthInc[mk(y,m)]=v;save();document.getElementById('salover').remove();renderDash();renderSet();showToast('Revenu enregistré ✓');setTimeout(()=>openBackupModal(),350);}
 function openBonusModal(){
   const now=new Date(),ym=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');
   document.body.insertAdjacentHTML('beforeend','<div class="overlay" id="bonpop" onclick="if(event.target.id===\'bonpop\')this.remove()"><div class="modal"><div class="modal-title">Nouvelle rentrée d\'argent</div><div class="fsec" style="margin-bottom:10px"><label class="fl">Description</label><input class="fi" type="text" id="bon-desc" placeholder="Ex: Intérêts..."></div><div class="fsec" style="margin-bottom:10px"><label class="fl">Montant (€)</label><input class="fi" type="number" id="bon-amt" placeholder="0.00" inputmode="decimal"></div><div class="fsec" style="margin-bottom:10px"><label class="fl">Mois (AAAA-MM)</label><input class="fi" type="text" id="bon-month" placeholder="'+ym+'" value="'+ym+'"></div><button class="btnp" onclick="saveBonus()">Ajouter</button><button onclick="document.getElementById(\'bonpop\').remove()" style="width:100%;background:none;border:none;color:var(--mu);padding:12px;cursor:pointer;font-family:inherit;font-size:14px;margin-top:4px">Annuler</button></div></div>');
@@ -885,6 +877,11 @@ function importData(input){
     }catch(err){showToast('Fichier invalide');}
   };
   reader.readAsText(file);input.value='';
+}
+
+// ─── Backup reminder ──────────────────────────
+function openBackupModal(){
+  document.body.insertAdjacentHTML('beforeend','<div class="saloverlay" id="backupper" onclick="if(event.target.id===\'backupper\')this.remove()"><div class="salmodal"><div class="salemoji">💾</div><div class="saltitle">Sauvegarde</div><div class="salsub">Pensez à sauvegarder vos données pour éviter toute perte !</div><button class="btnp" onclick="document.getElementById(\'backupper\').remove();exportData()">Exporter</button><button onclick="document.getElementById(\'backupper\').remove()" style="width:100%;background:none;border:none;color:var(--mu);padding:12px;cursor:pointer;font-family:inherit;font-size:14px;margin-top:4px">Passer</button></div></div>');
 }
 
 // ─── Init ─────────────────────────────────────
