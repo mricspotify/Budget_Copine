@@ -172,9 +172,11 @@ html,body{height:100%;background:var(--bg);color:var(--tx);font-family:-apple-sy
         <div class="card" style="border-left:2.5px solid var(--am)"><div class="cl">Épargne totale</div><div class="cv" style="color:var(--am)" id="d-save">—</div></div>
       </div>
       <div id="cat-cards" style="margin-bottom:12px"></div>
-      <div class="sec"><div class="sh">Répartition</div><div id="breakdown"></div></div>
+      <div class="sec"><div class="sh">Suivi des budgets</div><div id="breakdown"></div></div>
+      <div id="petsit-card" style="margin-bottom:12px"></div>
       <div class="sec"><div class="sh">Dépenses — 6 derniers mois</div><div class="chart-wrap"><canvas id="trendChart"></canvas></div></div>
       <div class="sec"><div class="sh">Épargne (reste) — 6 derniers mois</div><div class="chart-wrap"><canvas id="saveChart"></canvas></div></div>
+      <div class="sec" id="petsit-chart-sec" style="display:none"><div class="sh">Petsitting — 6 derniers mois</div><div class="chart-wrap"><canvas id="petsitChart"></canvas></div></div>
     </div></div>
 
     <!-- ADD -->
@@ -190,6 +192,12 @@ html,body{height:100%;background:var(--bg);color:var(--tx);font-family:-apple-sy
           <div style="display:flex;justify-content:flex-end;align-items:center;gap:8px">
             <span id="remb-label" style="font-size:13px;color:var(--re)">Sortie</span>
             <button class="toggle off" id="remb-toggle" onclick="toggleRemb()"></button>
+          </div>
+        </div>
+        <div id="petsit-wrap" style="margin-top:8px;display:none">
+          <div style="display:flex;justify-content:space-between;align-items:center;background:var(--s3);border:0.5px solid var(--b2);border-radius:10px;padding:11px 14px">
+            <div style="display:flex;align-items:center;gap:8px"><span style="font-size:16px">🐾</span><span style="font-size:13px;color:var(--mu2)">Revenu Petsitting</span></div>
+            <button class="toggle off" id="petsit-toggle" onclick="togglePetsit()"></button>
           </div>
         </div>
       </div>
@@ -233,6 +241,10 @@ html,body{height:100%;background:var(--bg);color:var(--tx);font-family:-apple-sy
       <div class="sec">
         <div class="sh" onclick="toggleSection('rec-body')" style="cursor:pointer">Dépenses récurrentes<div style="display:flex;gap:8px;align-items:center"><button class="sh-btn" onclick="event.stopPropagation();openRecurModal()">+ Ajouter</button><span id="rec-arrow" style="color:var(--mu);font-size:16px">▾</span></div></div>
         <div id="rec-body"><div id="recur-list"></div></div>
+      </div>
+      <div class="sec">
+        <div class="sh" onclick="toggleSection('lim-body')" style="cursor:pointer">Limites des catégories<div style="display:flex;gap:8px;align-items:center"><span id="lim-arrow" style="color:var(--mu);font-size:16px">▾</span></div></div>
+        <div id="lim-body"><div id="lim-list"></div></div>
       </div>
       <div class="sec">
         <div class="sh">Données</div>
@@ -284,9 +296,9 @@ const CAT={
 const SK='bg11_c',SR='br11_c',SI='bi11_c',SB='bb11_c',SL='bl11_c';
 
 // ─── State ────────────────────────────────────
-let expenses=[],recurItems=[],recurIncome=[],monthInc={},monthBon={},userAccounts=[];
+let expenses=[],recurItems=[],recurIncome=[],monthInc={},monthBon={},userAccounts=[],catLimits={};
 let lastMonth='',offset=0,editId=null,selCatVal=null,histFilt='all',selRecurCat=null,tChart=null;
-let isRemb=false;
+let isRemb=false,isPetsitting=false;
 
 // ─── Persistence ──────────────────────────────
 function save(){
@@ -298,6 +310,7 @@ function save(){
     localStorage.setItem(SB,JSON.stringify(monthBon));
     localStorage.setItem(SL,lastMonth);
     localStorage.setItem('bg11_c_acc',JSON.stringify(userAccounts));
+    localStorage.setItem('bg11_c_lim',JSON.stringify(catLimits));
   }catch(e){}
   supaSave();
 }
@@ -310,7 +323,8 @@ function load(){
     monthBon   =JSON.parse(localStorage.getItem(SB))||{};
     lastMonth  =localStorage.getItem(SL)||'';
     userAccounts=JSON.parse(localStorage.getItem('bg11_c_acc'))||[];
-  }catch(e){expenses=[];recurItems=[];monthInc={};monthBon={};userAccounts=[];}
+    catLimits=JSON.parse(localStorage.getItem('bg11_c_lim'))||{};
+  }catch(e){expenses=[];recurItems=[];monthInc={};monthBon={};userAccounts=[];catLimits={};}
 }
 
 // ─── Supabase ─────────────────────────────────
@@ -437,6 +451,25 @@ function calcSaveTotal(){
   Object.values(monthBon).forEach(bons=>bons.forEach(b=>total+=b.amount));
   return total+userAccounts.reduce((s,a)=>s+a.balance,0);
 }
+function calcSaveTotalUpTo(refY,refM){
+  let total=0;
+  getAllMonths().forEach(key=>{
+    const[y,m]=key.split('-').map(Number),mo=m-1;
+    if(y>refY||(y===refY&&mo>refM))return;
+    const txs=getExp(y,mo);
+    const sal=getIncBase(y,mo);
+    const revAmt=txs.filter(e=>e.cat==='revenu').reduce((s,e)=>s+e.amount,0);
+    const grossDep=txs.filter(e=>e.cat!=='revenu'&&!e.remb).reduce((s,e)=>s+e.amount,0);
+    const rembAmt=txs.filter(e=>e.remb===true&&e.cat!=='revenu').reduce((s,e)=>s+e.amount,0);
+    total+=sal+revAmt-(grossDep-rembAmt);
+  });
+  Object.entries(monthBon).forEach(([key,bons])=>{
+    const[y,m]=key.split('-').map(Number),mo=m-1;
+    if(y>refY||(y===refY&&mo>refM))return;
+    bons.forEach(b=>total+=b.amount);
+  });
+  return total;
+}
 
 // ─── Dashboard ────────────────────────────────
 function renderDash(){
@@ -454,7 +487,7 @@ function renderDash(){
   document.getElementById('d-inc').textContent=incTotal>0?fa(incTotal):'— €';
   document.getElementById('d-dep').textContent=fa(total);
   const re=document.getElementById('d-rest');re.textContent=fa(rest);re.style.color=rest>=0?'var(--te)':'var(--re)';
-  document.getElementById('d-save').textContent=fr(calcSaveTotal());
+  document.getElementById('d-save').textContent=fr(calcSaveTotalUpTo(y,m));
   document.getElementById('d-bonuses').innerHTML='';
 
   const cats=Object.entries(by).filter(([k,v])=>v>0&&k!=='revenu').sort((a,b)=>b[1]-a[1]);
@@ -462,8 +495,47 @@ function renderDash(){
   const mkCC=(k)=>{const c=CAT[k],v=by[k]||0;const vc=v>0?c.color:v<0?'var(--te)':'var(--mu)';return '<div class="card tap" onclick="openCatPop(\''+k+'\','+y+','+m+')" style="text-align:center;padding:11px 8px"><div style="font-size:20px;margin-bottom:3px">'+c.icon+'</div><div style="font-size:10px;color:var(--mu);text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px">'+c.label+'</div><div style="font-size:14px;font-weight:600;color:'+vc+'">'+fa(v)+'</div></div>';};
   cc.innerHTML='<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:8px">'+['fixes','transport','courses','sante'].map(mkCC).join('')+'</div>'+
     '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">'+['extras_mamie','nooka','autre'].map(mkCC).join('')+'</div>';
-  const maxV=Math.max(...cats.map(([,v])=>v),1);
-  document.getElementById('breakdown').innerHTML=cats.map(([k,v])=>{const c=CAT[k],pct=Math.round(v/maxV*100);return '<div class="brow"><div class="bdot" style="background:'+c.color+'"></div><span class="bname">'+c.label+'</span><div class="btrack"><div class="bbar" style="background:'+c.color+';width:'+pct+'%"></div></div><span class="bamt" style="color:'+c.color+'">'+fa(v)+'</span></div>';}).join('');
+  // ── Suivi des budgets ──
+  const mkBudgetBar=(catKey,spent,limit,labelSuffix)=>{
+    const c=CAT[catKey];
+    const isOver=spent>limit;
+    const spentPct=isOver?100:Math.round(spent/limit*100);
+    const overPct=isOver?Math.min(Math.round((spent-limit)/limit*100),50):0;
+    const amtColor=isOver?'var(--re)':c.color;
+    return '<div style="margin-bottom:14px">'+
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">'+
+      '<div style="display:flex;align-items:center;gap:6px"><span style="font-size:16px">'+c.icon+'</span>'+
+      '<span style="font-size:13px;font-weight:500">'+c.label+(labelSuffix||'')+'</span></div>'+
+      '<div><span style="font-size:13px;font-weight:600;color:'+amtColor+'">'+fa(spent)+'</span>'+
+      '<span style="font-size:11px;color:var(--mu)"> / '+fr(limit)+'</span></div></div>'+
+      '<div style="width:100%;height:6px;background:var(--s3);border-radius:3px;position:relative;overflow:visible">'+
+      '<div style="position:absolute;left:0;top:0;height:6px;border-radius:3px;background:'+c.color+';width:'+spentPct+'%"></div>'+
+      (isOver?'<div style="position:absolute;left:100%;top:0;height:6px;border-radius:0 3px 3px 0;background:var(--re);width:'+overPct+'%"></div>':'')+
+      '</div></div>';
+  };
+  const budgetRows=[];
+  Object.keys(CAT).filter(k=>k!=='revenu'&&k!=='autre').forEach(k=>{
+    if(!catLimits[k])return;
+    budgetRows.push(mkBudgetBar(k,by[k]||0,catLimits[k]));
+  });
+  // Catégorie "Autre" — base dynamique = revenu − toutes les autres catégories
+  const otherTotal=Object.entries(by).filter(([k])=>k!=='revenu'&&k!=='autre').reduce((s,[,v])=>s+v,0);
+  const autreBudget=incTotal-otherTotal;
+  const autreSpent=by['autre']||0;
+  const base=Math.max(autreBudget,0.01);
+  budgetRows.push(mkBudgetBar('autre',autreSpent,autreBudget>0?autreBudget:base,'<span style="font-size:10px;color:var(--mu);margin-left:4px">(reste)</span>'));
+  document.getElementById('breakdown').innerHTML=budgetRows.length?budgetRows.join(''):'<div style="color:var(--mu);font-size:13px;padding:8px 0;text-align:center">Configure des limites dans Réglages →</div>';
+  // ── Card petsitting ──
+  const nowYear=new Date().getFullYear();
+  const petsitAnnual=expenses.filter(e=>e.petsitting&&e.cat==='revenu'&&new Date(e.date).getFullYear()===nowYear).reduce((s,e)=>s+e.amount,0);
+  const pc=document.getElementById('petsit-card');
+  if(petsitAnnual>0){
+    pc.innerHTML='<div class="sec"><div class="sh">Activité de petsitting en cours</div>'+
+      '<div style="display:flex;align-items:center;gap:14px;padding:6px 0">'+
+      '<div style="font-size:36px">🐾</div>'+
+      '<div><div style="font-size:22px;font-weight:700;color:var(--pu);letter-spacing:-.03em">'+fr(petsitAnnual)+'</div>'+
+      '<div style="font-size:12px;color:var(--mu);margin-top:2px">Cumulé depuis le 1ᵉʳ janv. '+nowYear+'</div></div></div></div>';
+  } else {pc.innerHTML='';}
   renderTrend(y,m);
 }
 
@@ -522,6 +594,20 @@ function renderTrend(cy,cm){
   const opts=(data,color)=>({type:'bar',data:{labels,datasets:[{data,backgroundColor:data.map(v=>v>=0?color:'rgba(226,75,74,0.7)'),borderRadius:6,borderSkipped:false}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:{color:'rgba(26,26,46,0.38)',font:{size:11}},border:{display:false}},y:{grid:{color:'rgba(0,0,0,0.05)'},ticks:{color:'rgba(26,26,46,0.38)',font:{size:10},callback:v=>v+'€'},border:{display:false}}}}});
   try{if(tChart)tChart.destroy();tChart=new Chart(c1.getContext('2d'),opts(dep,'rgba(196,107,173,0.75)'));}catch(e){}
   try{if(window.sChart)window.sChart.destroy();window.sChart=new Chart(c2.getContext('2d'),opts(sav,'rgba(29,158,117,0.75)'));}catch(e){}
+  // Graphique petsitting
+  const c3=document.getElementById('petsitChart');
+  if(c3){
+    const petsitData=[];let hasPetsit=false;
+    for(let i=5;i>=0;i--){
+      const d=new Date(cy,cm-i,1),y2=d.getFullYear(),m2=d.getMonth();
+      const amt=expenses.filter(e=>e.petsitting&&e.cat==='revenu'&&new Date(e.date).getFullYear()===y2&&new Date(e.date).getMonth()===m2).reduce((s,e)=>s+e.amount,0);
+      petsitData.push(parseFloat(amt.toFixed(2)));
+      if(amt>0)hasPetsit=true;
+    }
+    const petsitSec=document.getElementById('petsit-chart-sec');
+    if(petsitSec)petsitSec.style.display=hasPetsit?'block':'none';
+    if(hasPetsit){try{if(window.pChart)window.pChart.destroy();window.pChart=new Chart(c3.getContext('2d'),opts(petsitData,'rgba(196,107,173,0.75)'));}catch(e){}}
+  }
 }
 
 // ─── Add / Edit ───────────────────────────────
@@ -533,12 +619,15 @@ function pickCat(btn,cat){
   document.querySelectorAll('#cat-grid .catb').forEach(b=>b.classList.remove('sel'));
   btn.classList.add('sel');
   selCatVal=cat;
-  const wrap=document.getElementById('remb-wrap');
+  const rembWrap=document.getElementById('remb-wrap');
+  const petsitWrap=document.getElementById('petsit-wrap');
   if(cat==='revenu'){
-    wrap.style.display='none';
+    rembWrap.style.display='none';
     isRemb=false;
+    if(petsitWrap)petsitWrap.style.display='block';
   } else {
-    wrap.style.display='block';
+    rembWrap.style.display='block';
+    if(petsitWrap){petsitWrap.style.display='none';isPetsitting=false;updatePetsitUI();}
   }
   updateRembUI();
 }
@@ -562,9 +651,16 @@ function updateRembUI(){
     if(lbl){lbl.textContent='Sortie';lbl.style.color='var(--re)';}
   }
 }
+function togglePetsit(){isPetsitting=!isPetsitting;updatePetsitUI();}
+function updatePetsitUI(){
+  const btn=document.getElementById('petsit-toggle');
+  if(!btn)return;
+  if(isPetsitting){btn.classList.remove('off');btn.classList.add('on');btn.style.background='var(--pu)';}
+  else{btn.classList.remove('on');btn.classList.add('off');btn.style.background='';}
+}
 
 function resetForm(){
-  editId=null;selCatVal=null;isRemb=false;
+  editId=null;selCatVal=null;isRemb=false;isPetsitting=false;
   document.getElementById('f-desc').value='';
   document.getElementById('f-amount').value='';
   document.getElementById('f-date').value=new Date().toISOString().split('T')[0];
@@ -573,7 +669,8 @@ function resetForm(){
   document.getElementById('cancel-btn').style.display='none';
   document.querySelectorAll('#cat-grid .catb').forEach(b=>b.classList.remove('sel'));
   document.getElementById('remb-wrap').style.display='none';
-  updateRembUI();
+  const pw=document.getElementById('petsit-wrap');if(pw)pw.style.display='none';
+  updateRembUI();updatePetsitUI();
 }
 
 function submitExpense(){
@@ -583,6 +680,7 @@ function submitExpense(){
   if(!desc||!amount||!date||!selCatVal){showToast('Remplis tous les champs !');return;}
   const entry={desc,amount,date,cat:selCatVal};
   if(isRemb)entry.remb=true;
+  if(isPetsitting&&selCatVal==='revenu')entry.petsitting=true;
   if(editId){
     const i=expenses.findIndex(e=>e.id===editId);
     if(i>-1)expenses[i]={...expenses[i],...entry};
@@ -601,7 +699,7 @@ function cancelEdit(){resetForm();document.querySelectorAll('.nb')[0].click();}
 
 function editExp(id){
   const e=expenses.find(x=>x.id===id);if(!e)return;
-  editId=id;selCatVal=e.cat;isRemb=e.remb||false;
+  editId=id;selCatVal=e.cat;isRemb=e.remb||false;isPetsitting=e.petsitting||false;
   document.getElementById('f-desc').value=e.desc;
   document.getElementById('f-amount').value=e.amount;
   document.getElementById('f-date').value=e.date;
@@ -609,10 +707,13 @@ function editExp(id){
   document.getElementById('submit-btn').textContent='Enregistrer';
   document.getElementById('cancel-btn').style.display='block';
   document.querySelectorAll('#cat-grid .catb').forEach(b=>{if(b.getAttribute('onclick')?.includes("'"+e.cat+"'"))b.classList.add('sel');});
-  // Show remb toggle if not revenu
   if(e.cat!=='revenu'){
     document.getElementById('remb-wrap').style.display='block';
     updateRembUI();
+  } else {
+    const pw=document.getElementById('petsit-wrap');
+    if(pw)pw.style.display='block';
+    updatePetsitUI();
   }
   document.querySelectorAll('.nb')[1].click();
 }
@@ -792,6 +893,39 @@ function renderSet(){
   document.getElementById('inc-list').innerHTML=entries.length?entries.map(([k,v])=>{const[y,m]=k.split('-');return '<div class="incrow"><div><div style="font-size:13px">'+MONTHS[parseInt(m)-1]+' '+y+'</div></div><div style="display:flex;align-items:center;gap:8px"><span style="font-size:13px;font-weight:600;color:var(--te)">'+fa(v)+'</span><button class="smb" onclick="editInc(\''+k+'\','+v+')">Modifier</button></div></div>';}).join(''):'<div style="color:var(--mu);font-size:13px;padding:8px 0">Aucun revenu</div>';
   document.getElementById('recur-inc-list').innerHTML=recurIncome.length?recurIncome.map(r=>'<div class="recur-item"><div style="font-size:18px">💸</div><div class="recur-info"><div class="recur-name">'+r.desc+'</div><div class="recur-amt">+'+fa(r.amount)+' · mensuel</div></div><div style="display:flex;gap:6px;align-items:center"><button class="txmenu" onclick="openRecurIncAS(\''+r.id+'\',event)">···</button><button class="toggle '+(r.active?'on':'off')+'" onclick="toggleRecurInc(\''+r.id+'\')"></button></div></div>').join(''):'<div style="color:var(--mu);font-size:13px;padding:8px 0">Aucun revenu récurrent</div>';
   document.getElementById('recur-list').innerHTML=recurItems.map(r=>'<div class="recur-item"><div style="font-size:18px">'+(CAT[r.cat]?.icon||'📌')+'</div><div class="recur-info"><div class="recur-name">'+r.desc+'</div><div class="recur-amt">'+fa(r.amount)+' · '+(CAT[r.cat]?.label||'Autre')+'</div></div><div style="display:flex;gap:6px;align-items:center"><button class="txmenu" onclick="openRecurAS(\''+r.id+'\',event)">···</button><button class="toggle '+(r.active?'on':'off')+'" onclick="toggleRecur(\''+r.id+'\')"></button></div></div>').join('');
+  const catKeys=Object.keys(CAT).filter(k=>k!=='revenu'&&k!=='autre');
+  document.getElementById('lim-list').innerHTML=catKeys.map(k=>{
+    const c=CAT[k],lim=catLimits[k];
+    return '<div class="incrow"><div style="display:flex;align-items:center;gap:8px">'+
+      '<span style="font-size:18px">'+c.icon+'</span>'+
+      '<div><div style="font-size:13px">'+c.label+'</div>'+
+      '<div style="font-size:11px;color:var(--mu)">'+(lim?'Limite : '+fr(lim):'Aucune limite')+'</div></div></div>'+
+      '<div style="display:flex;align-items:center;gap:6px">'+
+      (lim?'<button class="smb" style="background:var(--redim);border-color:var(--re);color:var(--re)" onclick="removeCatLimit(\''+k+'\')">✕</button>':'')+
+      '<button class="smb" onclick="openCatLimitModal(\''+k+'\')">'+( lim?'Modifier':'+ Définir')+'</button></div></div>';
+  }).join('');
+}
+function openCatLimitModal(catKey){
+  const c=CAT[catKey],cur=catLimits[catKey]||'';
+  document.body.insertAdjacentHTML('beforeend',
+    '<div class="saloverlay" id="limover" onclick="if(event.target.id===\'limover\')this.remove()"><div class="salmodal">'+
+    '<div class="salemoji">'+c.icon+'</div>'+
+    '<div class="saltitle">'+c.label+'</div>'+
+    '<div class="salsub">Limite mensuelle (€)</div>'+
+    '<input class="salinput" type="number" id="liminput" inputmode="decimal" placeholder="200" value="'+cur+'">'+
+    '<div class="salhint">Montant maximum pour cette catégorie chaque mois</div>'+
+    '<button class="btnp" onclick="saveCatLimit(\''+catKey+'\')">Confirmer</button>'+
+    '<button onclick="document.getElementById(\'limover\').remove()" style="width:100%;background:none;border:none;color:var(--mu);padding:12px;cursor:pointer;font-family:inherit;font-size:14px;margin-top:4px">Annuler</button>'+
+    '</div></div>');
+  setTimeout(()=>{const i=document.getElementById('liminput');if(i)i.focus();},100);
+}
+function saveCatLimit(catKey){
+  const v=parseFloat(document.getElementById('liminput').value);
+  if(!v||v<=0){showToast('Montant invalide');return;}
+  catLimits[catKey]=v;save();document.getElementById('limover').remove();renderSet();renderDash();showToast('Limite enregistrée ✓');
+}
+function removeCatLimit(catKey){
+  delete catLimits[catKey];save();renderSet();renderDash();showToast('Limite supprimée');
 }
 function editInc(key,cur){
   const[y,m]=key.split('-'),lbl=MONTHS[parseInt(m)-1]+' '+y;
@@ -854,7 +988,7 @@ function resetAll(){
   save();renderDash();renderSet();renderSave();showToast('Réinitialisé');
 }
 function exportData(){
-  const blob=new Blob([JSON.stringify({expenses,monthInc,monthBon,recurItems,recurIncome,accounts:userAccounts},null,2)],{type:'application/json'});
+  const blob=new Blob([JSON.stringify({expenses,monthInc,monthBon,recurItems,recurIncome,accounts:userAccounts,catLimits},null,2)],{type:'application/json'});
   const url=URL.createObjectURL(blob),a=document.createElement('a');
   a.href=url;a.download='monbudget_copine_backup.json';document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);
   showToast('Export téléchargé ✓');
@@ -871,6 +1005,7 @@ function importData(input){
       if(data.recurItems)  recurItems  =data.recurItems;
       if(data.recurIncome) recurIncome =data.recurIncome;
       if(data.accounts)    userAccounts=data.accounts;
+      if(data.catLimits)   catLimits   =data.catLimits;
       save();
       supaSave().then(()=>showToast('Données importées et sauvegardées ✓'));
       renderDash();renderSet();renderSave();buildFilter();
