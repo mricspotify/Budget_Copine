@@ -481,7 +481,9 @@ function renderDash(){
   const by=sumCat(txs);
   const total=Object.values(by).reduce((s,v)=>s+v,0);
   const revAmt=txs.filter(e=>e.cat==='revenu').reduce((s,e)=>s+e.amount,0);
-  const sal=getIncBase(y,m),incTotal=sal+revAmt;
+  const sal=getIncBase(y,m);
+  const bonAmt=(monthBon[mk(y,m)]||[]).reduce((s,b)=>s+b.amount,0);
+  const incTotal=sal+revAmt+bonAmt;
   const rest=incTotal-total;
 
   document.getElementById('d-inc').textContent=incTotal>0?fa(incTotal):'— €';
@@ -498,19 +500,29 @@ function renderDash(){
   // ── Suivi des budgets ──
   const mkBudgetBar=(catKey,spent,limit,labelSuffix)=>{
     const c=CAT[catKey];
-    const isOver=spent>limit;
-    const spentPct=isOver?100:Math.round(spent/limit*100);
-    const overPct=isOver?Math.min(Math.round((spent-limit)/limit*100),50):0;
+    const isOver=limit>0&&spent>limit;
+    const pctDisplay=limit>0?Math.round(spent/limit*100):0;
+    let normalPct,overBarPct;
+    if(isOver&&spent>0){
+      normalPct=Math.round(limit/spent*100);
+      overBarPct=100-normalPct;
+    } else {
+      normalPct=limit>0?Math.min(Math.round(spent/limit*100),100):0;
+      overBarPct=0;
+    }
     const amtColor=isOver?'var(--re)':c.color;
     return '<div style="margin-bottom:14px">'+
       '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">'+
       '<div style="display:flex;align-items:center;gap:6px"><span style="font-size:16px">'+c.icon+'</span>'+
       '<span style="font-size:13px;font-weight:500">'+c.label+(labelSuffix||'')+'</span></div>'+
-      '<div><span style="font-size:13px;font-weight:600;color:'+amtColor+'">'+fa(spent)+'</span>'+
-      '<span style="font-size:11px;color:var(--mu)"> / '+fr(limit)+'</span></div></div>'+
-      '<div style="width:100%;height:6px;background:var(--s3);border-radius:3px;position:relative;overflow:visible">'+
-      '<div style="position:absolute;left:0;top:0;height:6px;border-radius:3px;background:'+c.color+';width:'+spentPct+'%"></div>'+
-      (isOver?'<div style="position:absolute;left:100%;top:0;height:6px;border-radius:0 3px 3px 0;background:var(--re);width:'+overPct+'%"></div>':'')+
+      '<div style="display:flex;align-items:center;gap:4px">'+
+      '<span style="font-size:13px;font-weight:600;color:'+amtColor+'">'+fa(spent)+'</span>'+
+      '<span style="font-size:11px;color:var(--mu)"> / '+fr(limit)+'</span>'+
+      (isOver&&limit>=1?'<span style="font-size:10px;font-weight:600;color:var(--re);background:var(--redim);border-radius:4px;padding:1px 5px">'+pctDisplay+'%</span>':'')+
+      '</div></div>'+
+      '<div style="width:100%;height:6px;background:var(--s3);border-radius:3px;overflow:hidden;position:relative">'+
+      '<div style="position:absolute;left:0;top:0;height:6px;'+(isOver?'border-radius:3px 0 0 3px;':'border-radius:3px;')+'background:'+c.color+';width:'+normalPct+'%"></div>'+
+      (isOver?'<div style="position:absolute;left:'+normalPct+'%;top:0;height:6px;border-radius:0 3px 3px 0;background:var(--re);width:'+overBarPct+'%"></div>':'')+
       '</div></div>';
   };
   const budgetRows=[];
@@ -543,12 +555,15 @@ function renderDash(){
 function openRevenuPop(){
   const now=new Date(),ref=new Date(now.getFullYear(),now.getMonth()+offset,1);
   const y=ref.getFullYear(),m=ref.getMonth(),sal=getIncBase(y,m);
+  const key=mk(y,m);
+  const bons=monthBon[key]||[];
   const txs=getExp(y,m);
   const revTxs=txs.filter(e=>e.cat==='revenu').sort((a,b)=>new Date(b.date)-new Date(a.date));
-  const total=sal+revTxs.reduce((s,e)=>s+e.amount,0);
+  const total=sal+revTxs.reduce((s,e)=>s+e.amount,0)+bons.reduce((s,b)=>s+b.amount,0);
   const rows=[
     sal>0?`<div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:0.5px solid var(--b)"><div><div style="font-size:13px;font-weight:500">Salaire</div><div style="font-size:11px;color:var(--mu)">Revenu de base</div></div><span style="font-size:13px;font-weight:600;color:var(--bl)">${fa(sal)}</span></div>`:'',
-    ...revTxs.map(e=>{const d=new Date(e.date);return `<div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:0.5px solid var(--b)"><div><div style="font-size:13px;font-weight:500">${e.desc}</div><div style="font-size:11px;color:var(--mu)">${d.getDate().toString().padStart(2,'0')} ${MS[d.getMonth()]} · Revenu</div></div><span style="font-size:13px;font-weight:600;color:var(--te)">+${fa(e.amount)}</span></div>`;})
+    ...revTxs.map(e=>{const d=new Date(e.date);return `<div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:0.5px solid var(--b)"><div><div style="font-size:13px;font-weight:500">${e.desc}</div><div style="font-size:11px;color:var(--mu)">${d.getDate().toString().padStart(2,'0')} ${MS[d.getMonth()]} · Revenu</div></div><span style="font-size:13px;font-weight:600;color:var(--te)">+${fa(e.amount)}</span></div>`;}),
+    ...bons.map(b=>`<div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:0.5px solid var(--b)"><div><div style="font-size:13px;font-weight:500">${b.desc}</div><div style="font-size:11px;color:var(--mu)">${b.recurId?'Revenu récurrent':'Rentrée'}</div></div><span style="font-size:13px;font-weight:600;color:var(--te)">+${fa(b.amount)}</span></div>`)
   ].filter(Boolean).join('');
   document.body.insertAdjacentHTML('beforeend',
     '<div class="overlay" id="revpop" onclick="if(event.target.id===\'revpop\')this.remove()"><div class="modal">'+
