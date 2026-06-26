@@ -537,22 +537,24 @@ function renderDash(){
   const autreSpent=by['autre']||0,autreLim=catLimits['autre'];
   if(autreLim)unusedBudgets+=Math.max(autreLim-autreSpent,0);
   const epargneObj=catLimits[EPARGNE_KEY];
-  // ✨ Disponible supplémentaire = revenu − dépenses RÉELLES (toutes, incl Autre) − budgets prévisionnels restants.
-  //   Recalculé en continu ; jamais négatif. (disponibleRaw = avant clamp, sert à l'alerte.)
-  const disponibleRaw=incTotal-total-unusedBudgets;
-  const disponible=Math.max(disponibleRaw,0);
-  // 💶 Objectif d'épargne : il s'ADAPTE. Progression = montant réellement épargnable = disponible (plafonné à l'objectif).
-  const epargneBar=epargneObj?mkBudgetBar(EPARGNE_KEY,Math.min(disponible,epargneObj),epargneObj,{objective:true}):'';
-  // 📌 Autre : limite → spent/limite. Sinon barre INDÉPENDANTE : max = disponible "de départ" (= disponible + dépenses Autre),
-  //   progression = dépenses Autre réelles. Les dépenses Autre réduisent quand même le disponible (via `total`), mais
-  //   n'altèrent pas directement la barre (pas de corrélation).
+  // Surplus = revenu − dépenses RÉELLES (toutes, incl Autre) − budgets prévisionnels restants.
+  const surplus=incTotal-total-unusedBudgets;
+  // 💶 Objectif d'épargne : on réserve ce qu'on peut, plafonné à l'objectif et au surplus (s'adapte, ne force jamais le négatif).
+  const epargneReservee=epargneObj?Math.min(Math.max(surplus,0),epargneObj):0;
+  // ✨ Disponible supplémentaire = surplus APRÈS réservation de l'objectif d'épargne ; jamais négatif.
+  const disponibleRaw=surplus-(epargneObj||0); // <0 → objectif inatteignable (sert à l'alerte)
+  const disponible=Math.max(surplus-epargneReservee,0);
+  // Barre objectif : progression = épargne réellement réservée / objectif.
+  const epargneBar=epargneObj?mkBudgetBar(EPARGNE_KEY,epargneReservee,epargneObj,{objective:true}):'';
+  // 📌 Autre sans limite : max = Disponible supplémentaire "de départ" (= disponible + dépenses Autre, recalculé APRÈS l'épargne) ;
+  //   progression = dépenses Autre réelles. Les dépenses Autre réduisent le disponible (via `total`) sans altérer directement la barre.
   const autreBar=autreLim
     ? mkBudgetBar('autre',autreSpent,autreLim)
     : mkBudgetBar('autre',autreSpent,Math.max(disponible+autreSpent,0),{suffix:'<span style="font-size:10px;color:var(--mu);margin-left:4px">(dispo)</span>'});
   // 📈 Prévisions non utilisées : marges restantes des catégories à limite.
   // Alerte : revenus insuffisants pour couvrir les budgets + l'objectif d'épargne.
   const hasPrevisions=(epargneObj>0)||Object.keys(catLimits).some(k=>k!==EPARGNE_KEY&&catLimits[k]>0);
-  const objectifsInatteignables=hasPrevisions&&disponibleRaw<(epargneObj||0);
+  const objectifsInatteignables=hasPrevisions&&disponibleRaw<0;
   const infoRow=(emoji,label,val,color)=>'<div style="display:flex;justify-content:space-between;align-items:center;padding:11px 0 2px;margin-top:2px">'+
     '<span style="font-size:13px;font-weight:500">'+emoji+' '+label+'</span>'+
     '<span style="font-size:14px;font-weight:700;color:'+color+'">'+fa(val)+'</span></div>';
