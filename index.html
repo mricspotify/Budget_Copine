@@ -309,7 +309,7 @@ const CAT={
 // Catégories virtuelles de limite (pas des dépenses, pas dans CAT) :
 //  - epargne_prev : objectif d'épargne mensuel
 const EPARGNE_KEY='epargne_prev';
-const LIMIT_EXTRA={epargne_prev:{label:'Épargne prévisionnelle',icon:'🎯',color:'#1D9E75',objective:true}};
+const LIMIT_EXTRA={epargne_prev:{label:'Objectif d\'épargne',icon:'💶',color:'#1D9E75',objective:true}};
 function limMeta(k){return CAT[k]||LIMIT_EXTRA[k]||CAT.autre;}
 
 const SK='bg11_c',SR='br11_c',SI='bi11_c',SB='bb11_c',SL='bl11_c';
@@ -492,13 +492,12 @@ function renderDash(){
     '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">'+['extras_mamie','nooka','autre'].map(mkCC).join('')+'</div>';
   // ── Suivi des budgets ──
   // catKey peut être une catégorie de dépense, 'autre', ou EPARGNE_KEY (objectif).
-  // opts:{suffix, objective}. objective=true → pas de dépassement rouge, badge "✓ atteint".
+  // opts:{suffix, objective}. objective=true → pas de dépassement rouge, aucun message "atteint".
   const mkBudgetBar=(catKey,spent,limit,opts)=>{
     opts=opts||{};
     const c=limMeta(catKey);
     const objective=!!opts.objective;
     const labelSuffix=opts.suffix||'';
-    const reached=objective&&limit>0&&spent>=limit;
     const isOver=!objective&&limit>0&&spent>limit;
     const pctDisplay=limit>0?Math.round(spent/limit*100):0;
     let normalPct,overBarPct;
@@ -518,45 +517,42 @@ function renderDash(){
       '<span style="font-size:13px;font-weight:600;color:'+amtColor+'">'+fa(spent)+'</span>'+
       '<span style="font-size:11px;color:var(--mu)"> / '+fr(limit)+'</span>'+
       (isOver&&limit>=1?'<span style="font-size:10px;font-weight:600;color:var(--re);background:var(--redim);border-radius:4px;padding:1px 5px">'+pctDisplay+'%</span>':'')+
-      (reached?'<span style="font-size:10px;font-weight:600;color:var(--te);background:rgba(29,158,117,0.15);border-radius:4px;padding:1px 5px">✓ atteint</span>':'')+
       '</div></div>'+
       '<div style="width:100%;height:6px;background:var(--s3);border-radius:3px;overflow:hidden;position:relative">'+
       '<div style="position:absolute;left:0;top:0;height:6px;'+(isOver?'border-radius:3px 0 0 3px;':'border-radius:3px;')+'background:'+c.color+';width:'+normalPct+'%"></div>'+
       (isOver?'<div style="position:absolute;left:'+normalPct+'%;top:0;height:6px;border-radius:0 3px 3px 0;background:var(--re);width:'+overBarPct+'%"></div>':'')+
       '</div></div>';
   };
-  // ── Phase 3 : budgets réservés ──
-  // ── Suivi des budgets (Phase 3 + Correctifs 1-4 + réorg) ──
-  // Catégorie avec limite → réserve max(limite, dépensé), dépassement = réel. Sans limite → réel.
+  // ── Suivi des budgets (Correctifs 4-7 : dépenses prioritaires, l'épargne s'adapte) ──
+  // Hiérarchie : 1.revenus 2.dépenses réelles 3.budgets prévisionnels restants 4.disponible 5.objectif épargne.
+  // L'objectif d'épargne ne bloque JAMAIS le disponible. Toute dépense (même "Autre" sans limite) réduit le disponible.
   const SPEND_CATS=Object.keys(CAT).filter(k=>k!=='revenu'&&k!=='autre');
   const ORDER=['fixes','transport','courses','sante','nooka','extras_mamie'];
   const orderedCats=[...ORDER.filter(k=>SPEND_CATS.includes(k)),...SPEND_CATS.filter(k=>!ORDER.includes(k))];
-  let reserved6=0,unusedBudgets=0;const catBars=[];
+  let unusedBudgets=0;const catBars=[];
   orderedCats.forEach(k=>{
     const spent=by[k]||0,lim=catLimits[k];
-    if(lim){reserved6+=Math.max(lim,spent);unusedBudgets+=Math.max(lim-spent,0);catBars.push(mkBudgetBar(k,spent,lim));}
-    else{reserved6+=spent;}
+    if(lim){unusedBudgets+=Math.max(lim-spent,0);catBars.push(mkBudgetBar(k,spent,lim));}
   });
-  const disponibleBase=incTotal-reserved6; // reste après les catégories
   const autreSpent=by['autre']||0,autreLim=catLimits['autre'];
   if(autreLim)unusedBudgets+=Math.max(autreLim-autreSpent,0);
-  // Conservateur : "Autre" n'est réservé QUE s'il a une limite (Correctif 4 : sinon, calcul indépendant d'Autre).
-  const disponibleReserve=autreLim?disponibleBase-Math.max(autreLim,autreSpent):disponibleBase;
-  const realisable=incTotal-total; // épargne réalisable = revenu − dépenses réelles
   const epargneObj=catLimits[EPARGNE_KEY];
-  // ✨ Disponible supplémentaire (Correctifs 2/3/4) : libre après réservation des budgets ET de l'objectif d'épargne.
-  // = 0 tant que l'objectif d'épargne n'est pas atteint ; jamais négatif.
-  const disponible=Math.max(disponibleReserve-(epargneObj||0),0);
-  // Barre objectif épargne : progression = épargne réalisable, plafonnée à l'objectif (affichage X / objectif).
-  const epargneBar=epargneObj?mkBudgetBar(EPARGNE_KEY,Math.min(Math.max(realisable,0),epargneObj),epargneObj,{objective:true}):'';
-  // Barre "Autre" : limite → spent/limite ; sinon max = disponible (réf. d'affichage, indépendant du calcul).
+  // ✨ Disponible supplémentaire = revenu − dépenses RÉELLES (toutes, incl Autre) − budgets prévisionnels restants.
+  //   Recalculé en continu ; jamais négatif. (disponibleRaw = avant clamp, sert à l'alerte.)
+  const disponibleRaw=incTotal-total-unusedBudgets;
+  const disponible=Math.max(disponibleRaw,0);
+  // 💶 Objectif d'épargne : il s'ADAPTE. Progression = montant réellement épargnable = disponible (plafonné à l'objectif).
+  const epargneBar=epargneObj?mkBudgetBar(EPARGNE_KEY,Math.min(disponible,epargneObj),epargneObj,{objective:true}):'';
+  // 📌 Autre : limite → spent/limite. Sinon barre INDÉPENDANTE : max = disponible "de départ" (= disponible + dépenses Autre),
+  //   progression = dépenses Autre réelles. Les dépenses Autre réduisent quand même le disponible (via `total`), mais
+  //   n'altèrent pas directement la barre (pas de corrélation).
   const autreBar=autreLim
     ? mkBudgetBar('autre',autreSpent,autreLim)
-    : mkBudgetBar('autre',autreSpent,Math.max(disponible,0),{suffix:'<span style="font-size:10px;color:var(--mu);margin-left:4px">(dispo)</span>'});
-  // 📈 Prévisions non utilisées (Correctif 1) : marges restantes des catégories à limite.
-  // Alerte : revenus insuffisants pour couvrir budgets plafonnés + objectif épargne.
+    : mkBudgetBar('autre',autreSpent,Math.max(disponible+autreSpent,0),{suffix:'<span style="font-size:10px;color:var(--mu);margin-left:4px">(dispo)</span>'});
+  // 📈 Prévisions non utilisées : marges restantes des catégories à limite.
+  // Alerte : revenus insuffisants pour couvrir les budgets + l'objectif d'épargne.
   const hasPrevisions=(epargneObj>0)||Object.keys(catLimits).some(k=>k!==EPARGNE_KEY&&catLimits[k]>0);
-  const objectifsInatteignables=hasPrevisions&&disponibleReserve<(epargneObj||0);
+  const objectifsInatteignables=hasPrevisions&&disponibleRaw<(epargneObj||0);
   const infoRow=(emoji,label,val,color)=>'<div style="display:flex;justify-content:space-between;align-items:center;padding:11px 0 2px;margin-top:2px">'+
     '<span style="font-size:13px;font-weight:500">'+emoji+' '+label+'</span>'+
     '<span style="font-size:14px;font-weight:700;color:'+color+'">'+fa(val)+'</span></div>';
@@ -564,7 +560,7 @@ function renderDash(){
   const dispoRow=infoRow('✨','Disponible supplémentaire',disponible,disponible>0?'var(--te)':'var(--mu2)');
   const previsionsRow=infoRow('📈','Prévisions non utilisées',unusedBudgets,'var(--am)');
   const alertRow=objectifsInatteignables?'<div style="display:flex;align-items:center;gap:7px;padding:9px 11px;margin-top:8px;background:var(--redim);border:0.5px solid rgba(226,75,74,0.32);border-radius:8px"><span style="font-size:15px">⚠️</span><span style="font-size:11px;color:var(--re);line-height:1.35">Attention : revenus insuffisants pour atteindre les objectifs définis.</span></div>':'';
-  // Zone 1 (budgets de dépenses) | séparateur | Zone 2 (Épargne → Disponible+alerte → Prévisions)
+  // Zone 1 (budgets de dépenses) | séparateur | Zone 2 (Objectif épargne → Disponible+alerte → Prévisions)
   document.getElementById('breakdown').innerHTML=[...catBars,autreBar,sepRow,epargneBar,dispoRow,alertRow,previsionsRow].filter(Boolean).join('');
   // ── Card petsitting ──
   const nowYear=new Date().getFullYear();
