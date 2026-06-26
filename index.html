@@ -28,7 +28,7 @@ html,body{height:100%;background:var(--bg);color:var(--tx);font-family:-apple-sy
 .topbar-title{font-size:16px;font-weight:600;letter-spacing:-.03em;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .topbar-date{font-size:13px;font-weight:600;color:var(--pu);letter-spacing:-.01em;white-space:nowrap;flex-shrink:0;padding:0 10px;text-align:center}
 .topbar-icon{width:36px;height:36px;border-radius:10px;background:var(--pudim);border:0.5px solid var(--pubor);display:flex;align-items:center;justify-content:center;font-size:20px}
-.nav{display:flex;background:var(--s1);border-top:0.5px solid var(--b);flex-shrink:0;padding-bottom:max(8px,env(safe-area-inset-bottom))}
+.nav{display:flex;background:var(--s1);border-top:0.5px solid var(--b);position:fixed;bottom:0;left:0;right:0;margin:0 auto;width:100%;max-width:480px;z-index:50;padding-bottom:max(8px,env(safe-area-inset-bottom))}
 .nb{flex:1;background:none;border:none;color:var(--mu);font-size:9px;padding:8px 2px 6px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px;font-family:inherit;transition:color .15s}
 .nb svg{opacity:.45;transition:opacity .15s}
 .nb.active{color:var(--pu)}
@@ -36,7 +36,7 @@ html,body{height:100%;background:var(--bg);color:var(--tx);font-family:-apple-sy
 .pages{flex:1;overflow:hidden;position:relative}
 .page{position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;display:none;-webkit-overflow-scrolling:touch}
 .page.active{display:block}
-.inner{padding:16px;padding-bottom:32px}
+.inner{padding:16px;padding-bottom:calc(80px + env(safe-area-inset-bottom))}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
 .card{background:var(--s2);border:0.5px solid var(--b);border-radius:12px;padding:13px 14px}
 .card.tap{cursor:pointer;transition:background .15s}
@@ -526,32 +526,46 @@ function renderDash(){
       '</div></div>';
   };
   // ── Phase 3 : budgets réservés ──
-  // Pour chaque catégorie de dépense :
-  //   limite définie → on réserve max(limite, dépense réelle) ; dépassement = dépense réelle
-  //   pas de limite  → dépense classique = dépense réelle
+  // ── Suivi des budgets (Phase 3 + Correctifs 1-4 + réorg) ──
+  // Catégorie avec limite → réserve max(limite, dépensé), dépassement = réel. Sans limite → réel.
   const SPEND_CATS=Object.keys(CAT).filter(k=>k!=='revenu'&&k!=='autre');
-  let reservedOthers=0;const catBars=[];
-  SPEND_CATS.forEach(k=>{
+  const ORDER=['fixes','transport','courses','sante','nooka','extras_mamie'];
+  const orderedCats=[...ORDER.filter(k=>SPEND_CATS.includes(k)),...SPEND_CATS.filter(k=>!ORDER.includes(k))];
+  let reserved6=0,unusedBudgets=0;const catBars=[];
+  orderedCats.forEach(k=>{
     const spent=by[k]||0,lim=catLimits[k];
-    if(lim){reservedOthers+=Math.max(lim,spent);catBars.push(mkBudgetBar(k,spent,lim));}
-    else{reservedOthers+=spent;}
+    if(lim){reserved6+=Math.max(lim,spent);unusedBudgets+=Math.max(lim-spent,0);catBars.push(mkBudgetBar(k,spent,lim));}
+    else{reserved6+=spent;}
   });
-  // disponibleBase = ce qui reste après les budgets des catégories classiques (sert de limite à "Autre" si non défini)
-  const disponibleBase=incTotal-reservedOthers;
+  const disponibleBase=incTotal-reserved6; // reste après les catégories
   const autreSpent=by['autre']||0,autreLim=catLimits['autre'];
-  const engagedAutre=autreLim?Math.max(autreLim,autreSpent):autreSpent;
-  // ✨ Disponible supplémentaire = revenu total − budgets réservés − engagé "Autre"
-  const disponible=incTotal-reservedOthers-engagedAutre;
+  if(autreLim)unusedBudgets+=Math.max(autreLim-autreSpent,0);
+  // Conservateur : "Autre" n'est réservé QUE s'il a une limite (Correctif 4 : sinon, calcul indépendant d'Autre).
+  const disponibleReserve=autreLim?disponibleBase-Math.max(autreLim,autreSpent):disponibleBase;
+  const realisable=incTotal-total; // épargne réalisable = revenu − dépenses réelles
+  const epargneObj=catLimits[EPARGNE_KEY];
+  // ✨ Disponible supplémentaire (Correctifs 2/3/4) : libre après réservation des budgets ET de l'objectif d'épargne.
+  // = 0 tant que l'objectif d'épargne n'est pas atteint ; jamais négatif.
+  const disponible=Math.max(disponibleReserve-(epargneObj||0),0);
+  // Barre objectif épargne : progression = épargne réalisable, plafonnée à l'objectif (affichage X / objectif).
+  const epargneBar=epargneObj?mkBudgetBar(EPARGNE_KEY,Math.min(Math.max(realisable,0),epargneObj),epargneObj,{objective:true}):'';
+  // Barre "Autre" : limite → spent/limite ; sinon max = disponible (réf. d'affichage, indépendant du calcul).
   const autreBar=autreLim
     ? mkBudgetBar('autre',autreSpent,autreLim)
-    : mkBudgetBar('autre',autreSpent,Math.max(disponibleBase,0),{suffix:'<span style="font-size:10px;color:var(--mu);margin-left:4px">(dispo)</span>'});
-  // Épargne prévisionnelle : objectif ; "réalisé" = disponible (épargne réalisable)
-  const epargneObj=catLimits[EPARGNE_KEY];
-  const epargneBar=epargneObj?mkBudgetBar(EPARGNE_KEY,Math.max(disponible,0),epargneObj,{objective:true}):'';
-  const dispoRow='<div style="display:flex;justify-content:space-between;align-items:center;padding:11px 0 2px;margin-top:2px;border-top:0.5px solid var(--b)">'+
-    '<span style="font-size:13px;font-weight:500">✨ Disponible supplémentaire</span>'+
-    '<span style="font-size:14px;font-weight:700;color:'+(disponible>=0?'var(--te)':'var(--re)')+'">'+fa(disponible)+'</span></div>';
-  document.getElementById('breakdown').innerHTML=[...catBars,epargneBar,autreBar,dispoRow].filter(Boolean).join('');
+    : mkBudgetBar('autre',autreSpent,Math.max(disponible,0),{suffix:'<span style="font-size:10px;color:var(--mu);margin-left:4px">(dispo)</span>'});
+  // 📈 Prévisions non utilisées (Correctif 1) : marges restantes des catégories à limite.
+  // Alerte : revenus insuffisants pour couvrir budgets plafonnés + objectif épargne.
+  const hasPrevisions=(epargneObj>0)||Object.keys(catLimits).some(k=>k!==EPARGNE_KEY&&catLimits[k]>0);
+  const objectifsInatteignables=hasPrevisions&&disponibleReserve<(epargneObj||0);
+  const infoRow=(emoji,label,val,color)=>'<div style="display:flex;justify-content:space-between;align-items:center;padding:11px 0 2px;margin-top:2px">'+
+    '<span style="font-size:13px;font-weight:500">'+emoji+' '+label+'</span>'+
+    '<span style="font-size:14px;font-weight:700;color:'+color+'">'+fa(val)+'</span></div>';
+  const sepRow='<div style="height:1px;background:var(--b2);margin:14px 0 6px"></div>';
+  const dispoRow=infoRow('✨','Disponible supplémentaire',disponible,disponible>0?'var(--te)':'var(--mu2)');
+  const previsionsRow=infoRow('📈','Prévisions non utilisées',unusedBudgets,'var(--am)');
+  const alertRow=objectifsInatteignables?'<div style="display:flex;align-items:center;gap:7px;padding:9px 11px;margin-top:8px;background:var(--redim);border:0.5px solid rgba(226,75,74,0.32);border-radius:8px"><span style="font-size:15px">⚠️</span><span style="font-size:11px;color:var(--re);line-height:1.35">Attention : revenus insuffisants pour atteindre les objectifs définis.</span></div>':'';
+  // Zone 1 (budgets de dépenses) | séparateur | Zone 2 (Épargne → Disponible+alerte → Prévisions)
+  document.getElementById('breakdown').innerHTML=[...catBars,autreBar,sepRow,epargneBar,dispoRow,alertRow,previsionsRow].filter(Boolean).join('');
   // ── Card petsitting ──
   const nowYear=new Date().getFullYear();
   const petsitAnnual=expenses.filter(e=>e.petsitting&&e.cat==='revenu'&&new Date(e.date).getFullYear()===nowYear).reduce((s,e)=>s+e.amount,0);
