@@ -188,6 +188,7 @@ html,body{height:100%;background:var(--bg);color:var(--tx);font-family:-apple-sy
       </div>
       <div id="cat-cards" style="margin-bottom:12px"></div>
       <div class="sec"><div class="sh">Suivi des budgets</div><div id="breakdown"></div></div>
+      <div id="annual-area"></div>
       <div id="petsit-card" style="margin-bottom:12px"></div>
       <div id="charts-area"></div>
     </div></div>
@@ -256,7 +257,7 @@ html,body{height:100%;background:var(--bg);color:var(--tx);font-family:-apple-sy
         <div id="rec-body"><div id="recur-list"></div></div>
       </div>
       <div class="sec">
-        <div class="sh" onclick="toggleSection('lim-body')" style="cursor:pointer">Limites des catégories<div style="display:flex;gap:8px;align-items:center"><span id="lim-arrow" style="color:var(--mu);font-size:16px">▾</span></div></div>
+        <div class="sh" onclick="toggleSection('lim-body')" style="cursor:pointer">Limites des catégories<div style="display:flex;gap:8px;align-items:center"><button class="sh-btn" onclick="event.stopPropagation();openNewCatModal()">+ Ajouter</button><span id="lim-arrow" style="color:var(--mu);font-size:16px">▾</span></div></div>
         <div id="lim-body"><div id="lim-list"></div></div>
       </div>
       <div class="sec">
@@ -295,16 +296,29 @@ const MS=['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','D
 // → s'affiche en vert dans l'historique sous la bonne catégorie
 // → s'additionne au revenu sur le dashboard (comme cat=revenu)
 // → EXCLU des totaux de dépenses
-const CAT={
-  fixes:       {label:'Fixes',        icon:'🏠', color:'#7F77DD'},
-  transport:   {label:'Transport',     icon:'🚗', color:'#378ADD'},
-  courses:     {label:'Courses',       icon:'🛒', color:'#1D9E75'},
-  sante:       {label:'Santé',         icon:'💊', color:'#E24B4A'},
-  extras_mamie:{label:'Extras Mamie',  icon:'👵', color:'#EF9F27'},
-  nooka:       {label:'Nooka',         icon:'🐰', color:'#C46BAD'},
-  autre:       {label:'Autre',         icon:'📌', color:'#888780'},
-  revenu:      {label:'Revenu',        icon:'💰', color:'#1D9E75'},
-};
+// Définitions de catégories — valeurs par défaut = les 8 catégories d'origine,
+// AVEC exactement les mêmes clés / icônes / couleurs / ordre.
+// (Étape 1 « migration invisible » : la source des catégories devient un tableau
+//  stocké, mais CAT reste identique → aucun changement visible.)
+const DEFAULT_CATS=[
+  {key:'fixes',       label:'Fixes',       icon:'🏠', color:'#7F77DD'},
+  {key:'transport',   label:'Transport',   icon:'🚗', color:'#378ADD'},
+  {key:'courses',     label:'Courses',     icon:'🛒', color:'#1D9E75'},
+  {key:'sante',       label:'Santé',       icon:'💊', color:'#E24B4A'},
+  {key:'extras_mamie',label:'Extras Mamie',icon:'👵', color:'#EF9F27'},
+  {key:'nooka',       label:'Nooka',       icon:'🐰', color:'#C46BAD'},
+  {key:'autre',       label:'Autre',       icon:'📌', color:'#888780'},
+  {key:'revenu',      label:'Revenu',      icon:'💰', color:'#1D9E75'},
+];
+// `categories` = source modifiable (persistée). `CAT` = index reconstruit à
+// l'identique de l'ancien objet : {clé:{label,icon,color}}. Tout le code existant
+// continue de lire CAT sans aucune modification — seule la source change.
+let categories=[];
+let CAT={};
+function buildCAT(){
+  CAT={};
+  categories.forEach(c=>{CAT[c.key]={label:c.label,icon:c.icon,color:c.color};});
+}
 
 // Catégories virtuelles de limite (pas des dépenses, pas dans CAT) :
 //  - epargne_prev : objectif d'épargne mensuel
@@ -312,7 +326,7 @@ const EPARGNE_KEY='epargne_prev';
 const LIMIT_EXTRA={epargne_prev:{label:'Objectif d\'épargne',icon:'💶',color:'#1D9E75',objective:true}};
 function limMeta(k){return CAT[k]||LIMIT_EXTRA[k]||CAT.autre;}
 
-const SK='bg11_c',SR='br11_c',SI='bi11_c',SB='bb11_c',SL='bl11_c';
+const SK='bg11_c',SR='br11_c',SI='bi11_c',SB='bb11_c',SL='bl11_c',SC='bg11_c_cats';
 
 // ─── State ────────────────────────────────────
 let expenses=[],recurItems=[],recurIncome=[],monthInc={},monthBon={},userAccounts=[],catLimits={};
@@ -330,10 +344,79 @@ function save(){
     localStorage.setItem(SL,lastMonth);
     localStorage.setItem('bg11_c_acc',JSON.stringify(userAccounts));
     localStorage.setItem('bg11_c_lim',JSON.stringify(catLimits));
+    localStorage.setItem(SC,JSON.stringify(categories));
   }catch(e){}
   supaSave();
 }
+// Normalise une catégorie : garantit toujours les mêmes champs (rétro-compatible
+// avec un ancien stockage qui n'aurait que key/label/icon/color).
+function normalizeCat(c){
+  return {
+    key:c.key, label:c.label, icon:c.icon, color:c.color,
+    custom:c.custom===true,          // créée par l'utilisatrice ?
+    startMonth:c.startMonth||null,   // 'AAAA-MM' — mois de début d'activation (null = depuis toujours)
+    endMonth:c.endMonth||null,       // 'AAAA-MM' — inactive À PARTIR de ce mois (null = toujours active)
+    archived:c.archived===true,      // rangée : cachée des menus, historique conservé
+    budgetType:c.budgetType||'none', // 'none' | 'annual' (le mensuel reste dans catLimits)
+    budgetAmount:typeof c.budgetAmount==='number'?c.budgetAmount:0,
+    mutedMonths:Array.isArray(c.mutedMonths)?c.mutedMonths.slice():[] // mois 'AAAA-MM' ignorés à la main (indépendant de l'archivage)
+  };
+}
+function loadCategories(){
+  let stored=null;
+  try{stored=JSON.parse(localStorage.getItem(SC));}catch(e){stored=null;}
+  if(!Array.isArray(stored)||!stored.length){
+    // Première ouverture (ou stockage vide/corrompu) → on repart des 8 par défaut.
+    categories=DEFAULT_CATS.map(normalizeCat);
+    return;
+  }
+  categories=stored.map(normalizeCat);
+  // Garde-fou : une catégorie par défaut absente est réinjectée à sa place —
+  // on ne perd JAMAIS une des catégories de base.
+  DEFAULT_CATS.forEach((d,i)=>{
+    if(!categories.some(c=>c.key===d.key)) categories.splice(Math.min(i,categories.length),0,normalizeCat(d));
+  });
+}
+// ── Helpers catégories (étape 2) ──
+const CORE_KEYS=['autre','revenu']; // jamais archivables ni supprimables
+function catByKey(k){return categories.find(c=>c.key===k);}
+// Une catégorie est-elle active pour le mois (y, m 0-based) affiché ?
+// Défauts : startMonth=null → actives partout (comportement identique à avant).
+function catActiveForMonth(c,y,m){
+  if(!c||c.archived) return false;
+  const key=mk(y,m);
+  if(c.mutedMonths&&c.mutedMonths.includes(key)) return false; // désactivée à la main pour ce mois
+  if(c.startMonth && key<c.startMonth) return false;
+  if(c.endMonth && key>=c.endMonth) return false;
+  return true;
+}
+// Bascule "suivi / ignoré" de la catégorie pour LE MOIS EN COURS (n'archive ni ne supprime).
+function toggleCatMonth(k){
+  const c=catByKey(k);if(!c)return;
+  if(!Array.isArray(c.mutedMonths))c.mutedMonths=[];
+  const now=new Date(),key=mk(now.getFullYear(),now.getMonth());
+  const i=c.mutedMonths.indexOf(key);
+  if(i>=0)c.mutedMonths.splice(i,1); else c.mutedMonths.push(key);
+  save();renderSet();renderDash();buildCatGrid();
+  showToast(i>=0?'Suivi réactivé ce mois ✓':'Catégorie ignorée ce mois');
+}
+function moLabel(key){const p=key.split('-');return MS[parseInt(p[1],10)-1].toLowerCase()+'. '+p[0];}
+// Cumul NET (dépenses − remboursements) d'une catégorie sur UNE année civile,
+// à partir de son mois d'activation (dépenses antérieures exclues — spec §20).
+// Les années sont indépendantes (filtre strict sur `year`).
+function annualSpent(key,year){
+  const def=catByKey(key);let net=0;
+  expenses.forEach(e=>{
+    if(e.cat!==key) return;
+    const d=new Date(e.date);
+    if(d.getFullYear()!==year) return;
+    if(def&&def.startMonth&&mk(d.getFullYear(),d.getMonth())<def.startMonth) return;
+    net += e.remb ? -e.amount : e.amount;
+  });
+  return net;
+}
 function load(){
+  loadCategories();buildCAT();
   try{
     expenses   =JSON.parse(localStorage.getItem(SK))||[];
     recurItems =JSON.parse(localStorage.getItem(SR))||[];
@@ -485,11 +568,17 @@ function renderDash(){
   document.getElementById('d-save').textContent=fr(calcSaveTotalUpTo(y,m)+userAccounts.reduce((s,a)=>s+a.balance,0));
   document.getElementById('d-bonuses').innerHTML='';
 
-  const cats=Object.entries(by).filter(([k,v])=>v>0&&k!=='revenu').sort((a,b)=>b[1]-a[1]);
   const cc=document.getElementById('cat-cards');
   const mkCC=(k)=>{const c=CAT[k],v=by[k]||0;const vc=v>0?c.color:v<0?'var(--te)':'var(--mu)';return '<div class="card tap" onclick="openCatPop(\''+k+'\','+y+','+m+')" style="text-align:center;padding:11px 8px"><div style="font-size:20px;margin-bottom:3px">'+c.icon+'</div><div style="font-size:10px;color:var(--mu);text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px">'+c.label+'</div><div style="font-size:14px;font-weight:600;color:'+vc+'">'+fa(v)+'</div></div>';};
-  cc.innerHTML='<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:8px">'+['fixes','transport','courses','sante'].map(mkCC).join('')+'</div>'+
-    '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">'+['extras_mamie','nooka','autre'].map(mkCC).join('')+'</div>';
+  // Catégories de dépense actives pour le mois affiché (défauts = toujours actives → rendu inchangé).
+  const shownCats=categories.filter(c=>c.key!=='revenu'&&catActiveForMonth(c,y,m)).map(c=>c.key);
+  // Chunk en lignes de 4, chaque ligne étirée (repeat n) → 7 défauts = 4+3, identique à avant.
+  let ccHtml='';
+  for(let i=0;i<shownCats.length;i+=4){
+    const row=shownCats.slice(i,i+4),last=i+4>=shownCats.length;
+    ccHtml+='<div style="display:grid;grid-template-columns:repeat('+row.length+',1fr);gap:8px'+(last?'':';margin-bottom:8px')+'">'+row.map(mkCC).join('')+'</div>';
+  }
+  cc.innerHTML=ccHtml;
   // ── Suivi des budgets ──
   // catKey peut être une catégorie de dépense, 'autre', ou EPARGNE_KEY (objectif).
   // opts:{suffix, objective}. objective=true → pas de dépassement rouge, aucun message "atteint".
@@ -531,6 +620,8 @@ function renderDash(){
   const orderedCats=[...ORDER.filter(k=>SPEND_CATS.includes(k)),...SPEND_CATS.filter(k=>!ORDER.includes(k))];
   let unusedBudgets=0;const catBars=[];
   orderedCats.forEach(k=>{
+    const cdef=catByKey(k);
+    if(cdef&&!catActiveForMonth(cdef,y,m)) return; // pas de barre hors période d'activation
     const spent=by[k]||0,lim=catLimits[k];
     if(lim){unusedBudgets+=Math.max(lim-spent,0);catBars.push(mkBudgetBar(k,spent,lim));}
   });
@@ -564,6 +655,15 @@ function renderDash(){
   const alertRow=objectifsInatteignables?'<div style="display:flex;align-items:center;gap:7px;padding:9px 11px;margin-top:8px;background:var(--redim);border:0.5px solid rgba(226,75,74,0.32);border-radius:8px"><span style="font-size:15px">⚠️</span><span style="font-size:11px;color:var(--re);line-height:1.35">Attention : revenus insuffisants pour atteindre les objectifs définis.</span></div>':'';
   // Zone 1 (budgets de dépenses) | séparateur | Zone 2 (Objectif épargne → Disponible+alerte → Prévisions)
   document.getElementById('breakdown').innerHTML=[...catBars,autreBar,sepRow,epargneBar,dispoRow,alertRow,previsionsRow].filter(Boolean).join('');
+  // ── 📅 Budgets annuels (bloc séparé, isolé du calcul mensuel ci-dessus) ──
+  // Le cumul est celui de l'ANNÉE affichée (y). Les dépenses sont déjà comptées
+  // dans `total` plus haut ; ici on ne fait QUE le suivi de l'enveloppe annuelle.
+  const annualCats=categories.filter(c=>c.budgetType==='annual'&&c.budgetAmount>0&&!c.archived);
+  const aa=document.getElementById('annual-area');
+  if(annualCats.length){
+    const aBars=annualCats.map(c=>mkBudgetBar(c.key,annualSpent(c.key,y),c.budgetAmount)).join('');
+    aa.innerHTML='<div class="sec"><div class="sh">📅 Budgets annuels — '+y+'</div>'+aBars+'</div>';
+  } else aa.innerHTML='';
   // ── Card petsitting ──
   const nowYear=new Date().getFullYear();
   const petsitAnnual=expenses.filter(e=>e.petsitting&&e.cat==='revenu'&&new Date(e.date).getFullYear()===nowYear).reduce((s,e)=>s+e.amount,0);
@@ -677,6 +777,12 @@ function buildStackedDep(months){
   return ds;
 }
 
+// Catégories proposées dans le filtre du graphique Dépenses :
+// non archivées, ou archivées mais avec un historique (pour revoir leurs dépenses passées).
+function chartFilterCats(){
+  const used=new Set(expenses.map(e=>CAT[e.cat]?e.cat:'autre'));
+  return categories.filter(c=>c.key!=='revenu'&&(!c.archived||used.has(c.key)));
+}
 function renderCharts(){
   if(typeof Chart==='undefined')return;
   const area=document.getElementById('charts-area');if(!area)return;
@@ -689,7 +795,7 @@ function renderCharts(){
     const filterSel=id==='dep'?(
       '<select class="cfilter" onchange="setChartFilter(\'dep\',this.value)">'+
       '<option value="all"'+(st.filter==='all'?' selected':'')+'>Vue générale</option>'+
-      Object.keys(CAT).filter(k=>k!=='revenu').map(k=>'<option value="'+k+'"'+(st.filter===k?' selected':'')+'>'+CAT[k].icon+' '+CAT[k].label+'</option>').join('')+
+      chartFilterCats().map(c=>'<option value="'+c.key+'"'+(st.filter===c.key?' selected':'')+'>'+c.icon+' '+c.label+'</option>').join('')+
       '</select>'):'';
     html+='<div class="sec">'+
       '<div class="chart-top"><div class="chart-title">'+title+'</div>'+
@@ -721,8 +827,12 @@ function navChart(id,dir){chartState[id].nav+=dir;renderCharts();}
 function setChartFilter(id,cat){chartState[id].filter=cat;renderCharts();}
 
 // ─── Add / Edit ───────────────────────────────
-function buildCatGrid(){
-  document.getElementById('cat-grid').innerHTML=Object.entries(CAT).map(([k,c])=>'<button class="catb" onclick="pickCat(this,\''+k+'\')"><span class="catic">'+c.icon+'</span>'+c.label+'</button>').join('');
+function buildCatGrid(extraKey){
+  const now=new Date(),y=now.getFullYear(),m=now.getMonth();
+  // Catégories proposées : revenu toujours + actives aujourd'hui. + éventuellement
+  // la catégorie d'une dépense en cours de modification (même archivée/inactive).
+  const list=categories.filter(c=>c.key==='revenu'||catActiveForMonth(c,y,m)||c.key===extraKey);
+  document.getElementById('cat-grid').innerHTML=list.map(c=>'<button class="catb" onclick="pickCat(this,\''+c.key+'\')"><span class="catic">'+c.icon+'</span>'+c.label+'</button>').join('');
 }
 
 function pickCat(btn,cat){
@@ -810,6 +920,7 @@ function cancelEdit(){resetForm();document.querySelectorAll('.nb')[0].click();}
 function editExp(id){
   const e=expenses.find(x=>x.id===id);if(!e)return;
   editId=id;selCatVal=e.cat;isRemb=e.remb||false;isPetsitting=e.petsitting||false;
+  buildCatGrid(e.cat); // s'assure que la catégorie de la dépense est proposée, même archivée
   document.getElementById('f-desc').value=e.desc;
   document.getElementById('f-amount').value=e.amount;
   document.getElementById('f-date').value=e.date;
@@ -842,7 +953,9 @@ function openAS(id,ev){
 
 // ─── History ──────────────────────────────────
 function buildFilter(){
-  document.getElementById('filterbar').innerHTML=[{k:'all',l:'Tout'},...Object.entries(CAT).map(([k,c])=>({k,l:c.icon+' '+c.label})),{k:'remb',l:'↩️ Remboursements'}].map(f=>'<button class="fchip'+(histFilt===f.k?' on':'')+'" onclick="setFilt(\''+f.k+'\')">'+f.l+'</button>').join('');
+  const used=new Set(expenses.map(e=>CAT[e.cat]?e.cat:'autre'));
+  const cats=categories.filter(c=>!c.archived||used.has(c.key)); // non archivées + archivées avec historique
+  document.getElementById('filterbar').innerHTML=[{k:'all',l:'Tout'},...cats.map(c=>({k:c.key,l:c.icon+' '+c.label})),{k:'remb',l:'↩️ Remboursements'}].map(f=>'<button class="fchip'+(histFilt===f.k?' on':'')+'" onclick="setFilt(\''+f.k+'\')">'+f.l+'</button>').join('');
 }
 function setFilt(f){histFilt=f;buildFilter();renderHist();}
 
@@ -993,39 +1106,215 @@ function renderSet(){
   document.getElementById('inc-list').innerHTML=entries.length?entries.map(([k,v])=>{const[y,m]=k.split('-');return '<div class="incrow"><div><div style="font-size:13px">'+MONTHS[parseInt(m)-1]+' '+y+'</div></div><div style="display:flex;align-items:center;gap:8px"><span style="font-size:13px;font-weight:600;color:var(--te)">'+fa(v)+'</span><button class="smb" onclick="editInc(\''+k+'\','+v+')">Modifier</button></div></div>';}).join(''):'<div style="color:var(--mu);font-size:13px;padding:8px 0">Aucun revenu</div>';
   document.getElementById('recur-inc-list').innerHTML=recurIncome.length?recurIncome.map(r=>'<div class="recur-item"><div style="font-size:18px">💸</div><div class="recur-info"><div class="recur-name">'+r.desc+'</div><div class="recur-amt">+'+fa(r.amount)+' · mensuel</div></div><div style="display:flex;gap:6px;align-items:center"><button class="txmenu" onclick="openRecurIncAS(\''+r.id+'\',event)">···</button><button class="toggle '+(r.active?'on':'off')+'" onclick="toggleRecurInc(\''+r.id+'\')"></button></div></div>').join(''):'<div style="color:var(--mu);font-size:13px;padding:8px 0">Aucun revenu récurrent</div>';
   document.getElementById('recur-list').innerHTML=recurItems.map(r=>'<div class="recur-item"><div style="font-size:18px">'+(CAT[r.cat]?.icon||'📌')+'</div><div class="recur-info"><div class="recur-name">'+r.desc+'</div><div class="recur-amt">'+fa(r.amount)+' · '+(CAT[r.cat]?.label||'Autre')+'</div></div><div style="display:flex;gap:6px;align-items:center"><button class="txmenu" onclick="openRecurAS(\''+r.id+'\',event)">···</button><button class="toggle '+(r.active?'on':'off')+'" onclick="toggleRecur(\''+r.id+'\')"></button></div></div>').join('');
-  const catKeys=[...Object.keys(CAT).filter(k=>k!=='revenu'&&k!=='autre'),'autre',EPARGNE_KEY];
-  document.getElementById('lim-list').innerHTML=catKeys.map(k=>{
-    const c=limMeta(k),lim=catLimits[k],isObj=c.objective;
-    return '<div class="incrow"><div style="display:flex;align-items:center;gap:8px">'+
-      '<span style="font-size:18px">'+c.icon+'</span>'+
-      '<div><div style="font-size:13px">'+c.label+'</div>'+
-      '<div style="font-size:11px;color:var(--mu)">'+(lim?(isObj?'Objectif : ':'Limite : ')+fr(lim):(isObj?'Aucun objectif':'Aucune limite'))+'</div></div></div>'+
-      '<div style="display:flex;align-items:center;gap:6px">'+
-      (lim?'<button class="smb" style="background:var(--redim);border-color:var(--re);color:var(--re)" onclick="removeCatLimit(\''+k+'\')">✕</button>':'')+
-      '<button class="smb" onclick="openCatLimitModal(\''+k+'\')">'+( lim?'Modifier':'+ Définir')+'</button></div></div>';
-  }).join('');
+  renderCatManager();
+}
+// ── Gestionnaire de catégories (étape 2) ──
+// Depuis quand la catégorie est dans son état ACTUEL (actif/inactif), en remontant
+// le fil des mois cochés/décochés (borné au mois de début / à la 1re dépense).
+function catSinceLabel(def){
+  const now=new Date(),curY=now.getFullYear(),curM=now.getMonth(),cur=mk(curY,curM);
+  const activeNow=catActiveForMonth(def,curY,curM);
+  let floor=cur;
+  if(def.startMonth&&def.startMonth<floor)floor=def.startMonth;
+  (def.mutedMonths||[]).forEach(x=>{if(x<floor)floor=x;});
+  const _am=getAllMonths();if(_am.length&&_am[0]<floor)floor=_am[0]; // premier mois de suivi de l'app
+  expenses.forEach(e=>{if(e.cat===def.key){const d=new Date(e.date);const kk=mk(d.getFullYear(),d.getMonth());if(kk<floor)floor=kk;}});
+  let y=curY,m=curM,since=cur,guard=0;
+  while(guard++<800){
+    let pm=m-1,py=y;if(pm<0){pm=11;py--;}
+    const pk=mk(py,pm);
+    if(pk<floor)break;
+    if(catActiveForMonth(def,py,pm)!==activeNow)break;
+    since=pk;y=py;m=pm;
+  }
+  return {activeNow,since};
+}
+function catManageRow(k){
+  const c=limMeta(k),lim=catLimits[k],isObj=!!c.objective,def=catByKey(k);
+  const isCustom=def&&def.custom;
+  const annualB=!!(def&&def.budgetType==='annual'&&def.budgetAmount>0);
+  const hasBudget=!!lim||annualB;
+  const canManage=def&&!CORE_KEYS.includes(k)&&!isObj; // renommer / archiver / supprimer
+  // État courant + "depuis quand" (mois en cours). Actif par défaut.
+  const info=canManage?catSinceLabel(def):null;
+  const activeNow=info?info.activeNow:true;
+  let sub;
+  if(isObj) sub=lim?('Objectif : '+fr(lim)):'Aucun objectif';
+  else if(annualB) sub='Budget annuel : '+fr(def.budgetAmount);
+  else sub=lim?('Limite mensuelle : '+fr(lim)):'Aucun budget';
+  if(canManage){
+    const col=activeNow?'var(--te)':'var(--am)';
+    const word=activeNow?'Actif':'Inactif';
+    sub+=' · <span style="color:'+col+'">'+word+' depuis '+moLabel(info.since)+'</span>';
+  }
+  // Tout sur une seule ligne à droite : interrupteur du mois + budget + menu.
+  return '<div class="incrow">'+
+    '<div style="display:flex;align-items:center;gap:8px;flex:1;min-width:0">'+
+    '<span style="font-size:18px">'+c.icon+'</span>'+
+    '<div style="min-width:0"><div style="font-size:13px">'+c.label+'</div>'+
+    '<div style="font-size:11px;color:var(--mu)">'+sub+'</div></div></div>'+
+    '<div style="display:flex;align-items:center;gap:6px;flex-shrink:0">'+
+    (canManage?'<button class="toggle '+(activeNow?'on':'off')+'" title="Suivi ce mois-ci" onclick="toggleCatMonth(\''+k+'\')"></button>':'')+
+    (hasBudget?'<button class="smb" style="background:var(--redim);border-color:var(--re);color:var(--re)" onclick="removeCatLimit(\''+k+'\')">✕</button>':'')+
+    '<button class="smb" onclick="openCatLimitModal(\''+k+'\')">'+(hasBudget?'Modifier':'+ Définir')+'</button>'+
+    (canManage?'<button class="txmenu" onclick="openCatManageAS(\''+k+'\',event)">···</button>':'')+
+    '</div></div>';
+}
+function archivedRow(k){
+  const c=limMeta(k),hasExp=expenses.some(e=>e.cat===k);
+  return '<div class="incrow" style="opacity:.6"><div style="display:flex;align-items:center;gap:8px">'+
+    '<span style="font-size:18px">'+c.icon+'</span>'+
+    '<div><div style="font-size:13px">'+c.label+'</div>'+
+    '<div style="font-size:11px;color:var(--mu)">Archivée'+(hasExp?' · historique conservé':'')+'</div></div></div>'+
+    '<div style="display:flex;align-items:center;gap:6px">'+
+    '<button class="smb" onclick="unarchiveCat(\''+k+'\')">Réactiver</button>'+
+    (hasExp?'':'<button class="smb" style="background:var(--redim);border-color:var(--re);color:var(--re)" onclick="deleteCat(\''+k+'\')">Supprimer</button>')+
+    '</div></div>';
+}
+function renderCatManager(){
+  // Actives (non archivées) : catégories de dépense dans l'ordre, puis Autre, puis Objectif d'épargne.
+  const spend=categories.filter(c=>!CORE_KEYS.includes(c.key)&&!c.archived).map(c=>c.key);
+  const rows=[...spend,'autre',EPARGNE_KEY].map(catManageRow);
+  const archived=categories.filter(c=>c.archived);
+  let arch='';
+  if(archived.length){
+    arch='<div style="margin-top:12px;padding-top:6px;border-top:0.5px solid var(--b)">'+
+      '<div style="font-size:10px;color:var(--mu);text-transform:uppercase;letter-spacing:.06em;margin:4px 0 6px">Archivées ('+archived.length+')</div>'+
+      archived.map(c=>archivedRow(c.key)).join('')+'</div>';
+  }
+  document.getElementById('lim-list').innerHTML=rows.join('')+arch;
+}
+// Palette de couleurs auto pour les nouvelles catégories
+const NEW_CAT_COLORS=['#8E6BE2','#2FA8A0','#D8792F','#5B8DEF','#D65C8A','#5FA83A','#C9A227','#4AA6C4','#B5583F','#7A7FB0'];
+function pickNewColor(){const used=categories.map(c=>c.color);return NEW_CAT_COLORS.find(col=>!used.includes(col))||NEW_CAT_COLORS[categories.length%NEW_CAT_COLORS.length];}
+function openNewCatModal(){
+  const now=new Date(),ym=mk(now.getFullYear(),now.getMonth());
+  document.body.insertAdjacentHTML('beforeend',
+    '<div class="overlay" id="ncatpop" onclick="if(event.target.id===\'ncatpop\')this.remove()"><div class="modal">'+
+    '<div class="modal-title">Nouvelle catégorie</div>'+
+    '<div class="fsec" style="margin-bottom:10px"><label class="fl">Nom</label><input class="fi" type="text" id="ncat-name" placeholder="Ex : Équitation" maxlength="24"></div>'+
+    '<div class="fsec" style="margin-bottom:10px"><label class="fl">Emoji</label><input class="fi" type="text" id="ncat-icon" placeholder="🐴" maxlength="4"></div>'+
+    '<div class="fsec" style="margin-bottom:10px"><label class="fl">Active à partir de</label><input class="fi" type="month" id="ncat-month" value="'+ym+'"></div>'+
+    '<button class="btnp" onclick="saveNewCat()">Créer</button>'+
+    '<button onclick="document.getElementById(\'ncatpop\').remove()" style="width:100%;background:none;border:none;color:var(--mu);padding:12px;cursor:pointer;font-family:inherit;font-size:14px;margin-top:4px">Annuler</button>'+
+    '</div></div>');
+  setTimeout(()=>{const i=document.getElementById('ncat-name');if(i)i.focus();},100);
+}
+function saveNewCat(){
+  const name=document.getElementById('ncat-name').value.trim();
+  let icon=document.getElementById('ncat-icon').value.trim();
+  const month=document.getElementById('ncat-month').value;
+  if(!name){showToast('Donne un nom');return;}
+  if(!icon)icon='🏷️';
+  const cat={key:'c'+Date.now(),label:name,icon,color:pickNewColor(),custom:true,startMonth:month||null,endMonth:null,archived:false};
+  const idxAutre=categories.findIndex(c=>c.key==='autre'); // insérer avant Autre → Autre/Revenu restent en fin
+  if(idxAutre>=0)categories.splice(idxAutre,0,cat);else categories.push(cat);
+  save();buildCAT();renderSet();renderDash();buildCatGrid();buildFilter();
+  document.getElementById('ncatpop').remove();showToast('Catégorie créée ✓');
+}
+function openEditCatModal(k){
+  const c=catByKey(k);if(!c)return;
+  const monthField=c.custom?('<div class="fsec" style="margin-bottom:10px"><label class="fl">Active à partir de</label><input class="fi" type="month" id="ecat-month" value="'+(c.startMonth||'')+'"></div>'):'';
+  document.body.insertAdjacentHTML('beforeend',
+    '<div class="overlay" id="ecatpop" onclick="if(event.target.id===\'ecatpop\')this.remove()"><div class="modal">'+
+    '<div class="modal-title">Modifier la catégorie</div>'+
+    '<div class="fsec" style="margin-bottom:10px"><label class="fl">Nom</label><input class="fi" type="text" id="ecat-name" maxlength="24" value="'+c.label.replace(/"/g,'&quot;')+'"></div>'+
+    '<div class="fsec" style="margin-bottom:10px"><label class="fl">Emoji</label><input class="fi" type="text" id="ecat-icon" maxlength="4" value="'+c.icon+'"></div>'+
+    monthField+
+    '<button class="btnp" onclick="saveEditCat(\''+k+'\')">Enregistrer</button>'+
+    '<button onclick="document.getElementById(\'ecatpop\').remove()" style="width:100%;background:none;border:none;color:var(--mu);padding:12px;cursor:pointer;font-family:inherit;font-size:14px;margin-top:4px">Annuler</button>'+
+    '</div></div>');
+}
+function saveEditCat(k){
+  const c=catByKey(k);if(!c)return;
+  const name=document.getElementById('ecat-name').value.trim();
+  let icon=document.getElementById('ecat-icon').value.trim();
+  if(!name){showToast('Donne un nom');return;}
+  c.label=name;c.icon=icon||c.icon;
+  const mEl=document.getElementById('ecat-month');
+  if(mEl&&c.custom)c.startMonth=mEl.value||null;
+  save();buildCAT();renderSet();renderDash();buildCatGrid();buildFilter();
+  document.getElementById('ecatpop').remove();showToast('Catégorie modifiée ✓');
+}
+function openCatManageAS(k,ev){
+  ev.stopPropagation();const def=catByKey(k);if(!def)return;
+  const hasExp=expenses.some(e=>e.cat===k);
+  document.body.insertAdjacentHTML('beforeend',
+    '<div class="as" id="xcas" onclick="if(event.target.classList.contains(\'as-bg\'))document.getElementById(\'xcas\').remove()"><div class="as-bg"></div><div class="as-box">'+
+    '<div style="text-align:center;padding:6px 8px 12px;font-size:13px;color:var(--mu);border-bottom:0.5px solid var(--b);margin-bottom:4px">'+def.icon+' '+def.label+'</div>'+
+    '<div class="as-item" onclick="document.getElementById(\'xcas\').remove();openEditCatModal(\''+k+'\')"><span style="font-size:18px">✏️</span><span>Modifier</span></div>'+
+    '<div class="as-item" onclick="document.getElementById(\'xcas\').remove();archiveCat(\''+k+'\')"><span style="font-size:18px">📦</span><span>Archiver</span></div>'+
+    (def.custom&&!hasExp?'<div class="as-item" style="color:var(--re)" onclick="document.getElementById(\'xcas\').remove();deleteCat(\''+k+'\')"><span style="font-size:18px">🗑️</span><span>Supprimer</span></div>':'')+
+    '<button class="as-cancel" onclick="document.getElementById(\'xcas\').remove()">Annuler</button></div></div>');
+}
+function archiveCat(k){
+  const c=catByKey(k);if(!c||CORE_KEYS.includes(k))return;
+  if(!confirm('Archiver « '+c.label+' » ? Elle disparaîtra des menus, mais son historique et ses dépenses restent conservés.'))return;
+  c.archived=true;save();renderSet();renderDash();buildCatGrid();buildFilter();showToast('Catégorie archivée 📦');
+}
+function unarchiveCat(k){
+  const c=catByKey(k);if(!c)return;
+  c.archived=false;save();renderSet();renderDash();buildCatGrid();buildFilter();showToast('Catégorie réactivée ✓');
+}
+function deleteCat(k){
+  const c=catByKey(k);if(!c)return;
+  if(expenses.some(e=>e.cat===k)){showToast('Impossible : des dépenses existent (archive plutôt)');return;}
+  if(!c.custom){showToast('Catégorie de base non supprimable');return;}
+  if(!confirm('Supprimer définitivement « '+c.label+' » ?'))return;
+  categories=categories.filter(x=>x.key!==k);delete catLimits[k];
+  save();buildCAT();renderSet();renderDash();buildCatGrid();buildFilter();showToast('Catégorie supprimée');
+}
+function pickLimType(t){
+  window._limType=t;
+  document.querySelectorAll('#limtypes button').forEach(b=>b.classList.toggle('on',b.dataset.t===t));
+  const hint=document.getElementById('limhint');
+  if(hint)hint.textContent=t==='annual'?'Enveloppe pour toute l\'année (suivi à part, ne compte pas comme dépense mensuelle prévue)':'Montant maximum pour cette catégorie chaque mois';
 }
 function openCatLimitModal(catKey){
-  const c=limMeta(catKey),cur=catLimits[catKey]||'',isObj=c.objective;
+  const c=limMeta(catKey),def=catByKey(catKey),isObj=!!c.objective;
+  const allowAnnual=!!def&&!isObj&&catKey!=='autre';
+  const isAnnual=!!(def&&def.budgetType==='annual'&&def.budgetAmount>0);
+  const curType=isObj?'monthly':(isAnnual?'annual':(catLimits[catKey]?'monthly':'monthly'));
+  window._limType=allowAnnual?curType:'monthly';
+  const curAmount=isAnnual?(def.budgetAmount||''):(catLimits[catKey]||'');
+  const seg=allowAnnual?(
+    '<div class="rtoggle" id="limtypes" style="width:100%;margin-bottom:12px">'+
+    '<button type="button" class="'+(window._limType==='monthly'?'on':'')+'" data-t="monthly" style="flex:1" onclick="pickLimType(\'monthly\')">Mensuel</button>'+
+    '<button type="button" class="'+(window._limType==='annual'?'on':'')+'" data-t="annual" style="flex:1" onclick="pickLimType(\'annual\')">Annuel</button>'+
+    '</div>'):'';
+  const hint=isObj?'Montant que tu veux épargner chaque mois':(window._limType==='annual'?'Enveloppe pour toute l\'année (suivi à part, ne compte pas comme dépense mensuelle prévue)':'Montant maximum pour cette catégorie chaque mois');
   document.body.insertAdjacentHTML('beforeend',
     '<div class="saloverlay" id="limover" onclick="if(event.target.id===\'limover\')this.remove()"><div class="salmodal">'+
     '<div class="salemoji">'+c.icon+'</div>'+
     '<div class="saltitle">'+c.label+'</div>'+
-    '<div class="salsub">'+(isObj?'Objectif mensuel (€)':'Limite mensuelle (€)')+'</div>'+
-    '<input class="salinput" type="number" id="liminput" inputmode="decimal" placeholder="200" value="'+cur+'">'+
-    '<div class="salhint">'+(isObj?'Montant que tu veux épargner chaque mois':'Montant maximum pour cette catégorie chaque mois')+'</div>'+
+    '<div class="salsub">'+(isObj?'Objectif mensuel (€)':'Type et montant du budget')+'</div>'+
+    seg+
+    '<input class="salinput" type="number" id="liminput" inputmode="decimal" placeholder="200" value="'+curAmount+'">'+
+    '<div class="salhint" id="limhint">'+hint+'</div>'+
     '<button class="btnp" onclick="saveCatLimit(\''+catKey+'\')">Confirmer</button>'+
     '<button onclick="document.getElementById(\'limover\').remove()" style="width:100%;background:none;border:none;color:var(--mu);padding:12px;cursor:pointer;font-family:inherit;font-size:14px;margin-top:4px">Annuler</button>'+
     '</div></div>');
   setTimeout(()=>{const i=document.getElementById('liminput');if(i)i.focus();},100);
 }
 function saveCatLimit(catKey){
-  const v=parseFloat(document.getElementById('liminput').value);
+  const v=parseFloat((document.getElementById('liminput').value||'').replace(',','.'));
   if(!v||v<=0){showToast('Montant invalide');return;}
-  catLimits[catKey]=v;save();document.getElementById('limover').remove();renderSet();renderDash();showToast('Limite enregistrée ✓');
+  const def=catByKey(catKey),isObj=!!limMeta(catKey).objective;
+  const allowAnnual=!!def&&!isObj&&catKey!=='autre';
+  const type=allowAnnual?(window._limType||'monthly'):'monthly';
+  if(type==='annual'){
+    def.budgetType='annual';def.budgetAmount=v;
+    delete catLimits[catKey]; // budget annuel → JAMAIS de barre/limite mensuelle
+  } else {
+    catLimits[catKey]=v;
+    if(def){def.budgetType='none';def.budgetAmount=0;}
+  }
+  save();document.getElementById('limover').remove();renderSet();renderDash();showToast('Budget enregistré ✓');
 }
 function removeCatLimit(catKey){
-  delete catLimits[catKey];save();renderSet();renderDash();showToast('Limite supprimée');
+  delete catLimits[catKey];
+  const def=catByKey(catKey);if(def){def.budgetType='none';def.budgetAmount=0;}
+  save();renderSet();renderDash();showToast('Budget supprimé');
 }
 function editInc(key,cur){
   const[y,m]=key.split('-'),lbl=MONTHS[parseInt(m)-1]+' '+y;
@@ -1085,10 +1374,11 @@ function openRecurIncAS(id,ev){
 function resetAll(){
   if(!confirm('Supprimer TOUTES les données ?'))return;
   expenses=[];recurItems=[];recurIncome=[];monthInc={};monthBon={};lastMonth='';userAccounts=[];catLimits={};
-  save();renderDash();renderSet();renderSave();buildFilter();showToast('Réinitialisé');
+  categories=DEFAULT_CATS.map(normalizeCat);buildCAT();
+  save();renderDash();renderSet();renderSave();buildFilter();buildCatGrid();showToast('Réinitialisé');
 }
 function exportData(){
-  const blob=new Blob([JSON.stringify({expenses,monthInc,monthBon,recurItems,recurIncome,accounts:userAccounts,catLimits},null,2)],{type:'application/json'});
+  const blob=new Blob([JSON.stringify({expenses,monthInc,monthBon,recurItems,recurIncome,accounts:userAccounts,catLimits,categories},null,2)],{type:'application/json'});
   const url=URL.createObjectURL(blob),a=document.createElement('a');
   a.href=url;a.download='monbudget_copine_backup.json';document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);
   showToast('Export téléchargé ✓');
@@ -1106,9 +1396,16 @@ function importData(input){
       if(data.recurIncome) recurIncome =data.recurIncome;
       if(data.accounts)    userAccounts=data.accounts;
       if(data.catLimits)   catLimits   =data.catLimits;
+      // Catégories : si le fichier en contient (nouveau format) on les restaure ;
+      // sinon (ancien backup) on garde les catégories actuelles.
+      if(Array.isArray(data.categories)&&data.categories.length){
+        categories=data.categories.map(normalizeCat);
+        DEFAULT_CATS.forEach((d,i)=>{ if(!categories.some(c=>c.key===d.key)) categories.splice(Math.min(i,categories.length),0,normalizeCat(d)); });
+        buildCAT();
+      }
       save();
       showToast('Données importées ✓');
-      renderDash();renderSet();renderSave();buildFilter();
+      renderDash();renderSet();renderSave();buildFilter();buildCatGrid();
     }catch(err){showToast('Fichier invalide');}
   };
   reader.readAsText(file);input.value='';
