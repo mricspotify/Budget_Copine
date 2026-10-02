@@ -1891,7 +1891,7 @@ function freqToSel(f){return f.unit==='week'?'wN':(f.every===1?'m1':f.every===3?
 function monthFirst(off){const n=new Date();return ymd(new Date(n.getFullYear(),n.getMonth()+(off||0),1));}
 function normalizeRecur(r){
   return {id:r.id,type:r.type==='income'?'income':'expense',
-    versions:(r.versions||[]).map(v=>({from:v.from,amount:+v.amount||0,cat:v.cat||null,desc:v.desc||''})).sort((a,b)=>a.from.localeCompare(b.from)),
+    versions:(r.versions||[]).map(v=>({from:v.from,amount:+v.amount||0,cat:v.cat||null,desc:v.desc||'',remb:v.remb===true})).sort((a,b)=>a.from.localeCompare(b.from)),
     start:r.start,end:r.end||null,freq:{unit:r.freq&&r.freq.unit==='week'?'week':'month',every:Math.max(1,parseInt(r.freq&&r.freq.every,10)||1)},
     activity:Array.isArray(r.activity)?r.activity.map(a=>({from:a.from,on:!!a.on})):[],
     genFrom:r.genFrom||r.start,done:Array.isArray(r.done)?r.done.slice():[]};
@@ -1932,7 +1932,7 @@ function syncRecurring(){
       if(r.done.includes(d)||!recurOnAt(r,d))return;
       const v=recurVersionAt(r,d);
       if(r.type==='income'){const k=d.slice(0,7);(monthBon[k]=monthBon[k]||[]).push({desc:v.desc,amount:v.amount,recurId:r.id,date:d});}
-      else expenses.unshift({id:'rc'+r.id+'_'+d,date:d,desc:v.desc,amount:v.amount,cat:v.cat||'autre',recurId:r.id});
+      else{const e={id:'rc'+r.id+'_'+d,date:d,desc:v.desc,amount:v.amount,cat:v.cat||'autre',recurId:r.id};if(v.remb)e.remb=true;expenses.unshift(e);}
       r.done.push(d);changed=true;
     });
   });
@@ -1948,7 +1948,7 @@ function applyRecurVersion(r,from,v){
   r.versions=r.versions.filter(x=>x.from<from);r.versions.push(Object.assign({from},v));
   recurOccurrences(r).forEach(o=>{
     if(o.date<from)return;
-    if(o.e){o.e.desc=v.desc;o.e.amount=v.amount;o.e.cat=v.cat||'autre';}else{o.b.desc=v.desc;o.b.amount=v.amount;}
+    if(o.e){o.e.desc=v.desc;o.e.amount=v.amount;o.e.cat=v.cat||'autre';if(v.remb)o.e.remb=true;else delete o.e.remb;}else{o.b.desc=v.desc;o.b.amount=v.amount;}
   });
 }
 function dropRecurFrom(r,from){
@@ -1976,11 +1976,12 @@ function recurRow(r,ended){
   const ev=r.activity.find(e=>e.from>t);if(ev)notes.push((ev.on?'reprend':'s\'arrête')+' en '+moLabel(ev.from.slice(0,7)));
   if(r.end&&!ended)notes.push('jusqu\'au '+fmtD(r.end));
   if(ended)notes.push(r.end&&r.end<t?'terminée le '+fmtD(r.end):'désactivée');
-  const sub=(isInc?'Revenu':cat.label)+' · '+freqLabel(r.freq)+(notes.length?' · '+notes.join(' · '):'');
+  const isIn=isInc||v.remb; // entrée d'argent (revenu, ou entrée dans une catégorie)
+  const sub=(isInc?'Revenu':(v.remb?'Entrée · ':'')+cat.label)+' · '+freqLabel(r.freq)+(notes.length?' · '+notes.join(' · '):'');
   return '<div class="lrow"'+(ended?' style="opacity:.6"':'')+' onclick="openRecurForm(\''+r.id+'\')">'+
     '<div class="lic" style="background:'+(isInc?'rgba(29,158,117,.12)':cat.color+'1f')+'">'+(isInc?'💸':cat.icon)+'</div>'+
     '<div class="lmid"><div class="lt">'+escH(v.desc)+'</div><div class="ls">'+escH(sub)+'</div></div>'+
-    '<div class="lv" style="color:'+(isInc?'var(--te)':'var(--tx)')+'">'+(isInc?'+':'')+fr(v.amount)+'</div>'+
+    '<div class="lv" style="color:'+(isIn?'var(--te)':'var(--tx)')+'">'+(isIn?'+':'')+fr(v.amount)+'</div>'+
     '<button class="txmenu" onclick="openRecurAS(\''+r.id+'\',event)">···</button></div>';
 }
 function renderRecurring(){
@@ -2040,12 +2041,19 @@ function rfPickType(t){
   document.querySelectorAll('#rf-type button').forEach(b=>b.classList.toggle('on',b.dataset.t===t));
   document.getElementById('rf-catwrap').style.display=t==='income'?'none':'block';
 }
+// Sortie (rouge) = dépense ; Entrée (vert) = argent qui rentre dans la catégorie (ex. APL CAF → Fixes).
+function rfToggleRemb(){window._rf.remb=!window._rf.remb;rfRembUI();}
+function rfRembUI(){
+  const b=document.getElementById('rf-remb'),l=document.getElementById('rf-remb-lbl');if(!b)return;const on=window._rf.remb;
+  b.className='toggle '+(on?'on':'off');b.style.background=on?'var(--te)':'var(--re)';
+  l.textContent=on?'Entrée':'Sortie';l.style.color=on?'var(--te)':'var(--re)';
+}
 function rfPickCat(btn,k){document.querySelectorAll('#rf-cats .catb').forEach(b=>b.classList.remove('sel'));btn.classList.add('sel');window._rf.cat=k;}
 function rfFreqChange(){const v=document.getElementById('rf-freq').value;document.getElementById('rf-nwrap').style.display=(v==='mN'||v==='wN')?'flex':'none';document.getElementById('rf-nunit').textContent=v==='wN'?'semaines':'mois';}
 function openRecurForm(id){
   const r=id?recurring.find(x=>x.id===id):null,t=ymd(new Date());
   const v=r?recurVersionAt(r,t):{amount:'',cat:null,desc:''};
-  window._rf={id:id||null,type:r?r.type:'expense',cat:v.cat};
+  window._rf={id:id||null,type:r?r.type:'expense',cat:v.cat,remb:!!v.remb};
   const fsel=r?freqToSel(r.freq):'m1',nVal=r&&(fsel==='mN'||fsel==='wN')?r.freq.every:2;
   const cats=categories.filter(c=>c.key!=='revenu'&&(catActiveForMonth(c,new Date().getFullYear(),new Date().getMonth())||c.key===v.cat));
   const close="document.getElementById('rfpop').remove()";
@@ -2056,7 +2064,8 @@ function openRecurForm(id){
     '<div class="fsec" style="margin-bottom:10px"><label class="fl">Libellé</label><input class="fi" type="text" id="rf-desc" placeholder="Ex : Netflix, Loyer, Virement parents" value="'+escH(v.desc)+'"></div>'+
     '<div class="fsec" style="margin-bottom:10px"><label class="fl">Montant (€)</label><input class="fi" type="number" id="rf-amt" inputmode="decimal" placeholder="0.00" value="'+v.amount+'"></div>'+
     '<div class="fsec" id="rf-catwrap" style="margin-bottom:10px;display:'+(window._rf.type==='income'?'none':'block')+'"><label class="fl">Catégorie</label><div class="catg" id="rf-cats">'+
-      cats.map(c=>'<button class="catb'+(c.key===v.cat?' sel':'')+'" onclick="rfPickCat(this,\''+c.key+'\')"><span class="catic">'+c.icon+'</span>'+escH(c.label)+'</button>').join('')+'</div></div>'+
+      cats.map(c=>'<button class="catb'+(c.key===v.cat?' sel':'')+'" onclick="rfPickCat(this,\''+c.key+'\')"><span class="catic">'+c.icon+'</span>'+escH(c.label)+'</button>').join('')+'</div>'+
+      '<div style="display:flex;justify-content:flex-end;align-items:center;gap:8px;margin-top:10px"><span id="rf-remb-lbl" style="font-size:13px"></span><button class="toggle" id="rf-remb" onclick="rfToggleRemb()"></button></div></div>'+
     '<div class="fsec" style="margin-bottom:10px"><label class="fl">Fréquence</label><select class="fi" id="rf-freq" onchange="rfFreqChange()">'+
       FREQ_OPTS.map(([k,l])=>'<option value="'+k+'"'+(k===fsel?' selected':'')+'>'+l+'</option>').join('')+'</select>'+
       '<div id="rf-nwrap" style="display:'+(fsel==='mN'||fsel==='wN'?'flex':'none')+';align-items:center;gap:8px;margin-top:8px;font-size:13px;color:var(--mu2)">Tous les <input class="fi" type="number" id="rf-n" min="1" value="'+nVal+'" style="width:70px;padding:8px"> <span id="rf-nunit">'+(fsel==='wN'?'semaines':'mois')+'</span></div></div>'+
@@ -2066,6 +2075,7 @@ function openRecurForm(id){
     '<div style="font-size:11px;color:var(--mu);text-align:center;margin:-2px 0 6px">Les mois déjà passés ne sont jamais modifiés.</div>'+
     '<button class="btnp" onclick="saveRecurForm()">Enregistrer</button>'+
     '<button onclick="'+close+'" style="width:100%;background:none;border:none;color:var(--mu);padding:12px;cursor:pointer;font-family:inherit;font-size:14px;margin-top:4px">Annuler</button></div></div>');
+  rfRembUI(); // état initial du toggle Sortie/Entrée
 }
 function saveRecurForm(){
   const f=window._rf,desc=document.getElementById('rf-desc').value.trim();
@@ -2076,7 +2086,7 @@ function saveRecurForm(){
   if(!desc||!amount||amount<=0||!start){showToast('Remplis libellé, montant et début');return;}
   if(f.type==='expense'&&!f.cat){showToast('Choisis une catégorie');return;}
   if(end&&end<start){showToast('La fin est avant le début');return;}
-  const v={amount,cat:f.type==='income'?null:f.cat,desc};
+  const v={amount,cat:f.type==='income'?null:f.cat,desc,remb:f.type!=='income'&&!!f.remb};
   document.getElementById('rfpop').remove();
   if(!f.id){
     recurring.push(normalizeRecur({id:'rr'+Date.now().toString(36),type:f.type,versions:[{from:'0000-01-01',...v}],start,end,freq,activity:[],genFrom:monthFirst(0),done:[]}));
@@ -2092,7 +2102,7 @@ function saveRecurForm(){
   }
   // Valeurs (montant / catégorie / libellé) : l'utilisatrice choisit la prise d'effet (Phase 12).
   const cur=recurVersionAt(r,ymd(new Date()));
-  const valChanged=cur.amount!==v.amount||cur.desc!==v.desc||(cur.cat||null)!==(v.cat||null);
+  const valChanged=cur.amount!==v.amount||cur.desc!==v.desc||(cur.cat||null)!==(v.cat||null)||!!cur.remb!==!!v.remb;
   if(!valChanged){afterRecurChange(schedChanged?'Modifiée ✓':null);return;}
   if(schedChanged){syncRecurring();save();}
   openEffectPicker('Modifier « '+desc+' »',from=>{applyRecurVersion(r,from+'-01',v);afterRecurChange('Modifiée à partir de '+moLabel(from)+' ✓');});
