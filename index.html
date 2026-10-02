@@ -883,6 +883,12 @@ function renderEvolutions(y,m){
   [['inc',true],['dep',false],['rest',true],['save',true]].forEach(([k,upIsGood])=>{
     const el=document.getElementById('d-'+k+'-evo');if(!el)return;
     el.textContent='';
+    // Mois pas terminé : l'épargne totale s'arrête au dernier mois terminé → on le dit, pas de % trompeur.
+    if(k==='save'&&!isFinishedMonth(y,m)){
+      const lf=new Date(new Date().getFullYear(),new Date().getMonth()-1,1);
+      const s=document.createElement('span');s.className='vs';s.textContent='= épargne fin '+MSF[lf.getMonth()];
+      el.append(s);return;
+    }
     if(!ok||Math.abs(prev[k])<0.005)return; // pas de base de comparaison → rien plutôt qu'un % absurde
     const pct=(cur[k]-prev[k])/Math.abs(prev[k])*100,r=Math.round(pct);
     const v=document.createElement('span');
