@@ -202,6 +202,14 @@ html,body{height:100%;background:var(--bg);color:var(--tx);font-family:-apple-sy
 .lv small{display:block;font-size:10.5px;font-weight:500;color:var(--mu)}
 .lsub{font-size:10px;color:var(--mu);text-transform:uppercase;letter-spacing:.06em;font-weight:600;margin:10px 0 2px}
 .dot{width:7px;height:7px;border-radius:50%;display:inline-block;margin-right:4px;vertical-align:1px}
+/* Onglet Épargne : 2 pages glissées horizontalement (Projets | Historique) */
+.svpager{display:flex;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;scrollbar-width:none;align-items:flex-start;-webkit-overflow-scrolling:touch}
+.svpager::-webkit-scrollbar{display:none}
+.svpg{flex:0 0 100%;min-width:0;scroll-snap-align:start;scroll-snap-stop:always;padding:0 16px 8px;box-sizing:border-box}
+/* Valeur provisoire (mois en cours) : italique, gris clair, police fine */
+.provis,.cv.provis{font-style:italic;font-weight:300;color:var(--mu)!important}
+.pbar{height:5px;background:var(--s3);border-radius:3px;overflow:hidden;margin-top:5px}
+.pbar>div{height:5px;border-radius:3px}
 </style>
 </head>
 <body>
@@ -267,17 +275,28 @@ html,body{height:100%;background:var(--bg);color:var(--tx);font-family:-apple-sy
     </div></div>
 
     <!-- SAVINGS -->
-    <div class="page" id="page-save"><div class="inner">
-      <div class="ptitle">Épargne</div>
-      <div class="total-block">
-        <div class="total-lbl">Épargne totale</div>
-        <div class="total-val" id="save-total">—</div>
-        <div class="prog-wrap"><div class="prog-bar" id="save-bar"></div></div>
-        <div class="prog-info"><span id="save-prev">—</span><span style="color:var(--pu)" id="save-pct">—</span><span id="save-next">—</span></div>
+    <div class="page" id="page-save"><div class="inner" style="padding-left:0;padding-right:0">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:0 16px;margin-bottom:12px">
+        <div class="ptitle" style="margin-bottom:0">Épargne</div>
+        <div class="rtoggle" id="svtabs"><button class="on" onclick="svGo(0)">Projets</button><button onclick="svGo(1)">Historique</button></div>
       </div>
-      <div id="inv-cards-list"></div>
-      <div id="accounts-cards"></div>
-      <button class="btnp" style="margin-top:4px" onclick="openAccountModal()">+ Ajouter un compte</button>
+      <div class="svpager" id="svpager" onscroll="svOnScroll()">
+        <div class="svpg">
+          <div class="total-block">
+            <div class="total-lbl">Épargne totale</div>
+            <div class="total-val" id="save-total">—</div>
+            <div class="provis" id="save-cur" style="font-size:12px;margin-top:4px"></div>
+            <div class="prog-wrap"><div class="prog-bar" id="save-bar"></div></div>
+            <div class="prog-info"><span id="save-prev">—</span><span style="color:var(--pu)" id="save-pct">—</span><span id="save-next">—</span></div>
+          </div>
+          <div class="sec"><div class="sh">Répartition<button class="sh-btn" onclick="openProjForm()">+ Ajouter un projet</button></div><div id="sv-alloc"></div></div>
+          <div class="sh" style="padding:6px 2px 0">Composition de l'épargne</div>
+          <div id="inv-cards-list"></div>
+          <div id="accounts-cards"></div>
+          <button class="btnp" style="margin-top:4px" onclick="openAccountModal()">+ Ajouter un compte</button>
+        </div>
+        <div class="svpg"><div id="sv-hist"></div></div>
+      </div>
     </div></div>
 
     <!-- SETTINGS -->
@@ -363,6 +382,7 @@ const SK='bg11_c',SR='br11_c',SI='bi11_c',SB='bb11_c',SL='bl11_c',SC='bg11_c_cat
 
 // ─── State ────────────────────────────────────
 let _recMigrated=false;
+let projects=[]; // projets d'épargne (clé bg11_c_proj)
 let expenses=[],recurring=[],monthInc={},monthBon={},userAccounts=[],catLimits={};
 let lastMonth='',offset=0,editId=null,selCatVal=null,histFilt='all',tChart=null;
 let isRemb=false,isPetsitting=false;
@@ -371,7 +391,8 @@ let isRemb=false,isPetsitting=false;
 function save(){
   try{
     localStorage.setItem(SK,JSON.stringify(expenses));
-    localStorage.setItem(RK,JSON.stringify(recurring)); // anciennes clés br11_c / bg11_c_rc laissées intactes (retour arrière possible)
+    localStorage.setItem(RK,JSON.stringify(recurring));
+    localStorage.setItem('bg11_c_proj',JSON.stringify(projects)); // anciennes clés br11_c / bg11_c_rc laissées intactes (retour arrière possible)
     localStorage.setItem(SI,JSON.stringify(monthInc));
     localStorage.setItem(SB,JSON.stringify(monthBon));
     localStorage.setItem(SL,lastMonth);
@@ -524,7 +545,8 @@ function load(){
     lastMonth  =localStorage.getItem(SL)||'';
     userAccounts=JSON.parse(localStorage.getItem('bg11_c_acc'))||[];
     catLimits=JSON.parse(localStorage.getItem('bg11_c_lim'))||{};
-  }catch(e){expenses=[];monthInc={};monthBon={};userAccounts=[];catLimits={};}
+    projects=(JSON.parse(localStorage.getItem('bg11_c_proj'))||[]).map(normalizeProj);
+  }catch(e){expenses=[];monthInc={};monthBon={};userAccounts=[];catLimits={};projects=[];}
   // Données récurrentes : nouveau format (clé dédiée) sinon migration des 2 anciennes listes.
   // La migration lit expenses/monthBon → doit venir APRÈS leur chargement.
   let r2=null;try{r2=JSON.parse(localStorage.getItem(RK));}catch(e){r2=null;}
@@ -601,7 +623,7 @@ function showPage(id,btn){
   if(id==='dash'){resetChartViews();renderDash();renderCharts();}
   if(id==='hist'){buildFilter();renderHist();}
   if(id==='set')renderSet();
-  if(id==='save')renderSave();
+  if(id==='save'){renderSave();svReset();} // toujours la 1re page (Projets), jamais l'historique
   if(id==='add'&&!editId)resetForm();
 }
 function changeMonth(d){offset+=d;renderDash();}
@@ -647,6 +669,33 @@ function calcSaveTotalUpTo(refY,refM){
   return total;
 }
 
+// ─── Épargne & projets (refonte onglet Épargne) ──
+// Règles validées : l'épargne totale ne compte QUE les mois terminés (+ comptes manuels),
+// moins l'argent sorti par les projets archivés. Les projets sont une répartition VIRTUELLE ;
+// l'Argent de sécurité = épargne totale − montants affectés aux projets actifs (jamais saisi).
+// Archiver = l'argent utilisé SORT de l'épargne (l'achat n'est pas saisi en dépense) ;
+// annuler = l'argent revient dans l'Argent de sécurité.
+function isFinishedMonth(y,m){const n=new Date();return y<n.getFullYear()||(y===n.getFullYear()&&m<n.getMonth());}
+function normalizeProj(p){
+  return {id:p.id,name:p.name||'Projet',icon:p.icon||'🎯',goal:p.goal>0?+p.goal:null,
+    status:['archived','cancelled'].includes(p.status)?p.status:'active',created:p.created||ymd(new Date()),
+    closedAt:p.closedAt||null,used:+p.used||0,
+    moves:(p.moves||[]).map(x=>({id:x.id,date:x.date,amount:+x.amount||0}))};
+}
+function projAllocated(p,upTo){return p.moves.filter(x=>!upTo||x.date<=upTo).reduce((s,x)=>s+x.amount,0);}
+function projOutflowsUpTo(d){return projects.filter(p=>p.status==='archived'&&p.closedAt&&p.closedAt<=d).reduce((s,p)=>s+p.used,0);}
+// Épargne totale vue au mois (y,m) : mois terminés jusqu'à min(mois vu, mois précédent) + comptes − sorties.
+function savingsTotalAt(y,m){
+  let ry=y,rm=m;
+  if(!isFinishedMonth(y,m)){const d=new Date(new Date().getFullYear(),new Date().getMonth()-1,1);ry=d.getFullYear();rm=d.getMonth();}
+  const end=ymd(new Date(y,m+1,0)),t=ymd(new Date());
+  return calcSaveTotalUpTo(ry,rm)+userAccounts.reduce((s,a)=>s+a.balance,0)-projOutflowsUpTo(end<t?end:t);
+}
+function savingsNow(){const n=new Date();return savingsTotalAt(n.getFullYear(),n.getMonth());}
+function activeAllocated(){return projects.filter(p=>p.status==='active').reduce((s,p)=>s+projAllocated(p),0);}
+function safetyMoney(){return savingsNow()-activeAllocated();}
+const r2=v=>Math.round(v*100)/100;
+
 // ─── Dashboard ────────────────────────────────
 function renderDash(){
   const now=new Date(),ref=new Date(now.getFullYear(),now.getMonth()+offset,1);
@@ -664,7 +713,8 @@ function renderDash(){
   document.getElementById('d-inc').textContent=incTotal>0?fa(incTotal):'— €';
   document.getElementById('d-dep').textContent=fa(total);
   const re=document.getElementById('d-rest');re.textContent=fa(rest);re.style.color=rest>=0?'var(--te)':'var(--re)';
-  document.getElementById('d-save').textContent=fr(calcSaveTotalUpTo(y,m)+userAccounts.reduce((s,a)=>s+a.balance,0));
+  re.classList.toggle('provis',!isFinishedMonth(y,m)); // mois pas terminé → valeur provisoire
+  document.getElementById('d-save').textContent=fr(savingsTotalAt(y,m));
   renderEvolutions(y,m);
 
   const cc=document.getElementById('cat-cards');
@@ -791,7 +841,7 @@ function renderDash(){
 function monthHasData(y,m){return getAllMonths().includes(mk(y,m));}
 function monthFigures(y,m){
   const inc=monthRevTotal(y,m),dep=monthNetDep(y,m);
-  return {inc,dep,rest:inc-dep,save:calcSaveTotalUpTo(y,m)+userAccounts.reduce((s,a)=>s+a.balance,0)};
+  return {inc,dep,rest:inc-dep,save:savingsTotalAt(y,m)};
 }
 function renderEvolutions(y,m){
   const p=new Date(y,m-1,1),py=p.getFullYear(),pm=p.getMonth();
@@ -951,12 +1001,24 @@ function renderCharts(){
       let data,col=CHART_DEF[id].color;
       if(id==='dep'){data=win.months.map(({y,m})=>+monthNetDep(y,m,st.filter).toFixed(2));if(CAT[st.filter])col=CAT[st.filter].color;}
       else if(id==='rev')data=win.months.map(({y,m})=>+monthRevTotal(y,m).toFixed(2));
-      else if(id==='sav')data=win.months.map(({y,m})=>+monthSaving(y,m).toFixed(2));
+      else if(id==='sav')data=win.months.map(({y,m})=>isFinishedMonth(y,m)?+monthSaving(y,m).toFixed(2):null); // mois non terminé : pas de chiffre
       else data=win.months.map(({y,m})=>+monthPetsit(y,m).toFixed(2));
-      datasets=[{data,backgroundColor:data.map(v=>v>=0?col:'rgba(226,75,74,0.7)'),borderRadius:6,borderSkipped:false}];
+      datasets=[{data,backgroundColor:data.map(v=>v==null?'transparent':v>=0?col:'rgba(226,75,74,0.7)'),borderRadius:6,borderSkipped:false}];
     }
-    try{chartInstances[id]=new Chart(cv.getContext('2d'),{type:'bar',data:{labels,datasets},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{stacked,grid:{display:false},ticks:{color:'rgba(26,26,46,0.38)',font:{size:10}},border:{display:false}},y:{stacked,grid:{color:'rgba(0,0,0,0.05)'},ticks:{color:'rgba(26,26,46,0.38)',font:{size:10},callback:v=>v+'€'},border:{display:false}}}}});}catch(e){}
+    try{chartInstances[id]=new Chart(cv.getContext('2d'),{type:'bar',plugins:id==='sav'?[pendingMonthPlugin(win.months)]:[],data:{labels,datasets},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{stacked,grid:{display:false},ticks:{color:'rgba(26,26,46,0.38)',font:{size:10}},border:{display:false}},y:{stacked,grid:{color:'rgba(0,0,0,0.05)'},ticks:{color:'rgba(26,26,46,0.38)',font:{size:10},callback:v=>v+'€'},border:{display:false}}}}});}catch(e){}
   });
+}
+// Mois en cours dans le graphique Épargne : barre fantôme grise + « ? » (jamais de montant).
+function pendingMonthPlugin(months){
+  const n=new Date(),i=months.findIndex(({y,m})=>y===n.getFullYear()&&m===n.getMonth());
+  return {id:'pending',afterDatasetsDraw(ch){
+    if(i<0)return;const x=ch.scales.x.getPixelForValue(i),yS=ch.scales.y,base=yS.getPixelForValue(Math.max(0,yS.min)),c=ch.ctx;
+    const w=Math.min(26,(ch.chartArea.right-ch.chartArea.left)/months.length*0.6),h=Math.min(36,base-ch.chartArea.top-4);
+    c.save();c.fillStyle='rgba(26,26,46,0.07)';c.setLineDash([3,3]);c.strokeStyle='rgba(26,26,46,0.22)';
+    c.beginPath();c.rect(x-w/2,base-h,w,h);c.fill();c.stroke();
+    c.setLineDash([]);c.fillStyle='rgba(26,26,46,0.45)';c.font='italic 600 13px -apple-system,Segoe UI,sans-serif';c.textAlign='center';c.textBaseline='middle';
+    c.fillText('?',x,base-h/2);c.restore();
+  }};
 }
 function setChartRange(id,r){if(chartState[id].range===r)return;chartState[id].range=r;chartState[id].nav=0;saveChartRanges();renderCharts();}
 function navChart(id,dir){chartState[id].nav+=dir;renderCharts();}
@@ -1134,46 +1196,227 @@ function renderHist(){
 function renderSave(){
   const TI={banque:'🏦',invest:'📈',crypto:'₿',epargne:'💳',cash:'💵',autre:'🔮'};
   const TC={banque:'var(--bl)',invest:'var(--am)',crypto:'#F7931A',epargne:'var(--te)',cash:'var(--te)',autre:'var(--mu2)'};
-  // Reste accumulé = source unique : revenus totaux (salaire + cat=revenu + revenus
-  // récurrents/rentrées de monthBon) − dépenses nettes, cumulé sur tous les mois.
+  // Reste accumulé = revenus − dépenses nettes des mois TERMINÉS (le mois en cours est provisoire).
   let resteTotal=0;const resteParMois=[];
+  const n=new Date(),curKey=mk(n.getFullYear(),n.getMonth());
   getAllMonths().forEach(key=>{
     const[y,m]=key.split('-').map(Number),mo=m-1;
-    const txs=getExp(y,mo);
-    const sal=getIncBase(y,mo);
-    const revAmt=txs.filter(e=>e.cat==='revenu').reduce((s,e)=>s+e.amount,0);
-    const recurInc=(monthBon[key]||[]).reduce((s,b)=>s+b.amount,0);
-    const grossDep=txs.filter(e=>e.cat!=='revenu'&&!e.remb).reduce((s,e)=>s+e.amount,0);
-    const rembAmt=txs.filter(e=>e.remb===true&&e.cat!=='revenu').reduce((s,e)=>s+e.amount,0);
-    const reste=sal+revAmt+recurInc-(grossDep-rembAmt);
+    if(!isFinishedMonth(y,mo))return;
+    const reste=monthSaving(y,mo);
     resteTotal+=reste;resteParMois.push({key,y,m:mo,reste});
   });
-  const accsTotal=userAccounts.reduce((s,a)=>s+a.balance,0);
-  const grand=resteTotal+accsTotal;
+  const used=projOutflowsUpTo(ymd(n));
+  const grand=savingsNow();
   const goal=Math.ceil(grand/10000)*10000||10000,prev=goal-10000;
   const pct=grand>0?Math.min(100,Math.round(((grand-prev)/(goal-prev))*100)):0;
   document.getElementById('save-total').textContent=fr(grand);
+  const cur=monthSaving(n.getFullYear(),n.getMonth());
+  document.getElementById('save-cur').textContent=MONTHS[n.getMonth()]+' en cours : '+(cur>=0?'+':'')+fr(cur)+' (provisoire)';
   document.getElementById('save-bar').style.width=pct+'%';
   document.getElementById('save-pct').textContent=pct+'% · Prochain objectif '+fr(goal);
   document.getElementById('save-prev').textContent=fr(prev);
   document.getElementById('save-next').textContent=fr(goal);
   window._saveData={resteParMois};
   const mkCard=(icon,name,sub,amt,color,click,menu='')=>'<div class="sav-card" onclick="'+click+'" style="--card-color:'+color+'"><div class="sav-left"><div class="sav-icon" style="background:'+color+'22;color:'+color+'">'+icon+'</div><div class="sav-info"><div class="sav-name">'+name+'</div><div class="sav-sub">'+sub+'</div></div></div><div class="sav-right"><div class="sav-amt" style="color:'+color+'">'+fa(amt)+'</div>'+menu+'</div></div>';
-  let html=mkCard('💵','Reste accumulé','Cumul mensuel · '+resteParMois.length+' mois',resteTotal,'var(--te)',"openSavePop('reste')");
+  let html=mkCard('💵','Reste accumulé','Mois terminés · '+resteParMois.length+' mois',resteTotal,'var(--te)',"openSavePop('reste')");
   userAccounts.forEach((a,i)=>{
     const color=TC[a.type]||'var(--mu2)',icon=TI[a.type]||'🔮';
-    html+=mkCard(icon,a.name,a.type+' · Compte manuel',a.balance,color,"openSavePop('compte',"+i+")",'<button class="sav-menu" onclick="event.stopPropagation();openInvAS('+i+')" title="Options">···</button>');
+    html+=mkCard(icon,escH(a.name),a.type+' · Compte manuel',a.balance,color,"openSavePop('compte',"+i+")",'<button class="sav-menu" onclick="event.stopPropagation();openInvAS('+i+')" title="Options">···</button>');
   });
-  if(!html)html='<div style="color:var(--mu);font-size:14px;padding:48px 0;text-align:center;line-height:1.8">Aucune donnée<br><span style="font-size:12px">Importe ton fichier JSON</span></div>';
+  if(used>0)html+=mkCard('📤','Projets utilisés','Argent sorti (projets archivés)',-used,'var(--co)',"svGo(1)");
   document.getElementById('inv-cards-list').innerHTML=html;
   document.getElementById('accounts-cards').innerHTML='';
+  renderProjects();
+}
+// ── Pages Projets / Historique ──
+function svGo(i){const p=document.getElementById('svpager');if(p)p.scrollTo({left:i*p.clientWidth,behavior:'smooth'});}
+function svOnScroll(){
+  const p=document.getElementById('svpager');if(!p)return;
+  const i=Math.round(p.scrollLeft/Math.max(1,p.clientWidth));
+  document.querySelectorAll('#svtabs button').forEach((b,j)=>b.classList.toggle('on',j===i));
+}
+function svReset(){const p=document.getElementById('svpager');if(p)p.scrollLeft=0;svOnScroll();}
+function projRow(p){
+  const a=projAllocated(p),hasGoal=!!p.goal,pc=hasGoal?Math.min(100,Math.round(a/p.goal*100)):0;
+  const sub=hasGoal?(fr(a)+' / '+fr(p.goal)+' · '+Math.round(a/p.goal*100)+' %'):'Sans objectif';
+  return '<div class="lrow" onclick="openProjDetail(\''+p.id+'\')">'+
+    '<div class="lic" style="background:var(--pudim)">'+escH(p.icon)+'</div>'+
+    '<div class="lmid"><div class="lt">'+escH(p.name)+'</div><div class="ls">'+sub+'</div>'+
+    (hasGoal?'<div class="pbar"><div style="width:'+pc+'%;background:'+(pc>=100?'var(--te)':'var(--pu)')+'"></div></div>':'')+'</div>'+
+    '<div class="lv">'+fr(a)+'</div>'+
+    '<button class="txmenu" onclick="openProjAS(\''+p.id+'\',event)">···</button></div>';
+}
+function renderProjects(){
+  const el=document.getElementById('sv-alloc');if(!el)return;
+  const act=projects.filter(p=>p.status==='active'),saf=safetyMoney();
+  let h=act.length?act.map(projRow).join(''):'<div style="color:var(--mu);font-size:13px;padding:6px 0 10px">Aucun projet pour l\'instant. Crée-en un pour donner une destination à une partie de ton épargne.</div>';
+  h+='<div class="lrow" style="cursor:default;border-top:0.5px solid var(--b2)">'+
+    '<div class="lic" style="background:rgba(29,158,117,.12)">🛡️</div>'+
+    '<div class="lmid"><div class="lt">Argent de sécurité</div><div class="ls">Non affecté à un projet</div></div>'+
+    '<div class="lv" style="color:'+(saf<0?'var(--re)':'var(--te)')+'">'+fr(saf)+'</div></div>';
+  el.innerHTML=h;
+  // Historique (2e page) : projets archivés et annulés
+  const hist=projects.filter(p=>p.status!=='active').sort((a,b)=>(b.closedAt||'').localeCompare(a.closedAt||''));
+  const hEl=document.getElementById('sv-hist');
+  hEl.innerHTML='<div class="sec"><div class="sh">Historique des projets</div>'+(hist.length?hist.map(p=>{
+    const arch=p.status==='archived',a=projAllocated(p);
+    const sub=(arch?'Archivé':'Annulé')+' le '+fmtD(p.closedAt)+' · '+(arch?fr(p.used)+' utilisés'+(a-p.used>0.004?' ('+fr(a-p.used)+' revenus en sécurité)':''):fr(a)+' revenus en sécurité');
+    return '<div class="lrow" onclick="openProjDetail(\''+p.id+'\')"><div class="lic" style="background:var(--s3)">'+escH(p.icon)+'</div>'+
+      '<div class="lmid"><div class="lt">'+escH(p.name)+'</div><div class="ls" style="white-space:normal">'+sub+'</div></div>'+
+      '<span style="font-size:10.5px;font-weight:600;border-radius:10px;padding:2px 8px;background:'+(arch?'rgba(29,158,117,.12);color:var(--te)':'var(--s3);color:var(--mu2)')+'">'+(arch?'Archivé':'Annulé')+'</span></div>';
+  }).join(''):'<div style="color:var(--mu);font-size:13px;padding:6px 0 10px">Les projets archivés ou annulés apparaîtront ici.</div>')+'</div>';
+}
+// ── Actions projets ──
+function projById(id){return projects.find(p=>p.id===id);}
+function afterProjChange(msg){save();renderSave();renderDash();if(msg)showToast(msg);}
+function closeOv(id){const e=document.getElementById(id);if(e)e.remove();}
+function openProjForm(id){
+  const p=id?projById(id):null;
+  document.body.insertAdjacentHTML('beforeend','<div class="overlay" id="pjpop" onclick="if(event.target.id===\'pjpop\')this.remove()"><div class="modal">'+
+    '<div class="modal-title">'+(p?'Modifier le projet':'Nouveau projet')+'</div>'+
+    '<div style="display:grid;grid-template-columns:72px 1fr;gap:8px">'+
+    '<div class="fsec" style="margin-bottom:10px"><label class="fl">Emoji</label><input class="fi" type="text" id="pj-icon" maxlength="4" placeholder="🏠" value="'+(p?escH(p.icon):'')+'" style="text-align:center"></div>'+
+    '<div class="fsec" style="margin-bottom:10px;min-width:0"><label class="fl">Nom</label><input class="fi" type="text" id="pj-name" maxlength="30" placeholder="Ex : Vacances" value="'+(p?escH(p.name):'')+'"></div></div>'+
+    '<div class="fsec" style="margin-bottom:10px"><label class="fl">Objectif (€, facultatif)</label><input class="fi" type="number" id="pj-goal" inputmode="decimal" placeholder="Laisser vide = sans objectif" value="'+(p&&p.goal?p.goal:'')+'"></div>'+
+    (p?'':'<div class="fsec" style="margin-bottom:10px"><label class="fl">Affecter dès maintenant (€, facultatif)</label><input class="fi" type="number" id="pj-init" inputmode="decimal" placeholder="0"><div style="font-size:11px;color:var(--mu);margin-top:6px">Disponible en sécurité : '+fa(safetyMoney())+'</div></div>')+
+    '<button class="btnp" onclick="saveProj('+(p?'\''+p.id+'\'':'')+')">'+(p?'Enregistrer':'Créer le projet')+'</button>'+
+    '<button onclick="closeOv(\'pjpop\')" style="width:100%;background:none;border:none;color:var(--mu);padding:12px;cursor:pointer;font-family:inherit;font-size:14px;margin-top:4px">Annuler</button></div></div>');
+  setTimeout(()=>{const i=document.getElementById('pj-name');if(i)i.focus();},100);
+}
+function saveProj(id){
+  const name=document.getElementById('pj-name').value.trim(),icon=document.getElementById('pj-icon').value.trim()||'🎯';
+  const gv=parseFloat((document.getElementById('pj-goal').value||'').replace(',','.'));
+  if(!name){showToast('Donne un nom au projet');return;}
+  const goal=gv>0?gv:null;
+  if(id){const p=projById(id);p.name=name;p.icon=icon;p.goal=goal;closeOv('pjpop');afterProjChange('Projet modifié ✓');return;}
+  const init=r2(parseFloat((document.getElementById('pj-init').value||'').replace(',','.'))||0);
+  if(init<0){showToast('Montant invalide');return;}
+  if(init>r2(safetyMoney())+0.001){showToast('Il ne reste que '+fa(safetyMoney())+' en sécurité');return;}
+  const p=normalizeProj({id:'pj'+Date.now().toString(36),name,icon,goal,moves:init>0?[{id:'mv'+Date.now().toString(36),date:ymd(new Date()),amount:init}]:[]});
+  projects.push(p);closeOv('pjpop');afterProjChange('Projet créé ✓');
+}
+function openProjAS(id,ev){
+  if(ev)ev.stopPropagation();const p=projById(id);if(!p)return;
+  const close="closeOv('xpas')",it=(ic,l,fn,red)=>'<div class="as-item"'+(red?' style="color:var(--re)"':'')+' onclick="'+close+';'+fn+'"><span style="font-size:18px">'+ic+'</span><span>'+l+'</span></div>';
+  const a=projAllocated(p);
+  document.body.insertAdjacentHTML('beforeend','<div class="as" id="xpas" onclick="if(event.target.classList.contains(\'as-bg\'))'+close+'"><div class="as-bg"></div><div class="as-box">'+
+    '<div style="text-align:center;padding:6px 8px 12px;font-size:13px;color:var(--mu);border-bottom:0.5px solid var(--b);margin-bottom:4px">'+escH(p.icon)+' '+escH(p.name)+' · '+fr(a)+'</div>'+
+    it('➕','Affecter de l\'argent',"openMoveForm('"+id+"',1)")+
+    (a>0?it('➖','Retirer de l\'argent',"openMoveForm('"+id+"',-1)"):'')+
+    it('📈','Voir l\'évolution',"openProjDetail('"+id+"')")+
+    it('✏️','Modifier',"openProjForm('"+id+"')")+
+    it('📦','Archiver (argent utilisé)',"openArchiveProj('"+id+"')")+
+    it('↩️','Annuler le projet',"cancelProj('"+id+"')")+
+    (p.moves.length?'':it('🗑️','Supprimer',"deleteProj('"+id+"')",true))+
+    '<button class="as-cancel" onclick="'+close+'">Annuler</button></div></div>');
+}
+function openMoveForm(id,sign){
+  const p=projById(id);if(!p)return;
+  const max=sign>0?safetyMoney():projAllocated(p);
+  document.body.insertAdjacentHTML('beforeend','<div class="saloverlay" id="mvover" onclick="if(event.target.id===\'mvover\')this.remove()"><div class="salmodal">'+
+    '<div class="salemoji">'+escH(p.icon)+'</div><div class="saltitle">'+(sign>0?'Affecter à ':'Retirer de ')+escH(p.name)+'</div>'+
+    '<div class="salsub">'+(sign>0?'Pris dans l\'Argent de sécurité · disponible : ':'Revient dans l\'Argent de sécurité · affecté : ')+fa(max)+'</div>'+
+    '<input class="salinput" type="number" id="mv-amt" inputmode="decimal" placeholder="0">'+
+    '<label style="display:block;font-size:11px;color:var(--mu);margin-bottom:12px">Date<input class="fi" type="date" id="mv-date" value="'+ymd(new Date())+'" style="margin-top:4px;padding:9px;font-size:14px"></label>'+
+    '<button class="btnp" onclick="saveMove(\''+id+'\','+sign+')">Confirmer</button>'+
+    '<button onclick="closeOv(\'mvover\')" style="width:100%;background:none;border:none;color:var(--mu);padding:12px;cursor:pointer;font-family:inherit;font-size:14px;margin-top:4px">Annuler</button></div></div>');
+  setTimeout(()=>{const i=document.getElementById('mv-amt');if(i)i.focus();},100);
+}
+function saveMove(id,sign){
+  const p=projById(id);if(!p)return;
+  const v=r2(parseFloat((document.getElementById('mv-amt').value||'').replace(',','.'))||0),date=document.getElementById('mv-date').value;
+  if(!(v>0)||!date){showToast('Montant ou date invalide');return;}
+  if(sign>0&&v>r2(safetyMoney())+0.001){showToast('Il ne reste que '+fa(safetyMoney())+' en sécurité');return;} // règle : on bloque
+  if(sign<0&&v>r2(projAllocated(p))+0.001){showToast('Ce projet n\'a que '+fa(projAllocated(p)));return;}
+  p.moves.push({id:'mv'+Date.now().toString(36),date,amount:sign*v});
+  closeOv('mvover');afterProjChange(sign>0?'+'+fr(v)+' affectés ✓':fr(v)+' retirés ✓');
+  if(document.getElementById('pdpop')){closeOv('pdpop');openProjDetail(id);}
+}
+function delMove(pid,mid){
+  const p=projById(pid);if(!p||p.status!=='active')return;
+  const mv=p.moves.find(x=>x.id===mid);if(!mv)return;
+  if(mv.amount<0&&-mv.amount>r2(safetyMoney())+0.001){showToast('Pas assez d\'argent de sécurité pour annuler ce retrait');return;}
+  if(!confirm('Supprimer ce mouvement de '+fa(Math.abs(mv.amount))+' ?'))return;
+  p.moves=p.moves.filter(x=>x.id!==mid);afterProjChange('Mouvement supprimé');closeOv('pdpop');openProjDetail(pid);
+}
+function openArchiveProj(id){
+  const p=projById(id);if(!p)return;const a=projAllocated(p);
+  document.body.insertAdjacentHTML('beforeend','<div class="saloverlay" id="arover" onclick="if(event.target.id===\'arover\')this.remove()"><div class="salmodal">'+
+    '<div class="salemoji">📦</div><div class="saltitle">Archiver « '+escH(p.name)+' »</div>'+
+    '<div class="salsub">Projet terminé : l\'argent utilisé sort de ton épargne. Ne saisis pas cet achat en dépense (sinon il serait compté deux fois).</div>'+
+    '<label style="display:block;font-size:11px;color:var(--mu);margin-bottom:4px">Montant réellement utilisé</label>'+
+    '<input class="salinput" type="number" id="ar-amt" inputmode="decimal" value="'+r2(a)+'" oninput="arHint('+a+')">'+
+    '<div class="salhint" id="ar-hint">'+fa(a)+' sortent de l\'épargne.</div>'+
+    '<button class="btnp" onclick="archiveProj(\''+id+'\')">Archiver</button>'+
+    '<button onclick="closeOv(\'arover\')" style="width:100%;background:none;border:none;color:var(--mu);padding:12px;cursor:pointer;font-family:inherit;font-size:14px;margin-top:4px">Annuler</button></div></div>');
+}
+function arHint(a){
+  const v=parseFloat((document.getElementById('ar-amt').value||'').replace(',','.'))||0,h=document.getElementById('ar-hint');
+  h.textContent=v>a?'Maximum : '+fa(a):fa(v)+' sortent de l\'épargne'+(a-v>0.004?' · '+fa(a-v)+' reviennent en sécurité':'')+'.';
+}
+function archiveProj(id){
+  const p=projById(id);if(!p)return;const a=r2(projAllocated(p));
+  const v=r2(parseFloat((document.getElementById('ar-amt').value||'').replace(',','.'))||0);
+  if(v<0||v>a+0.001){showToast('Entre 0 et '+fa(a));return;}
+  p.status='archived';p.used=v;p.closedAt=ymd(new Date());
+  closeOv('arover');afterProjChange('Projet archivé · '+fr(v)+' sortis de l\'épargne');
+}
+function cancelProj(id){
+  const p=projById(id);if(!p)return;const a=projAllocated(p);
+  if(!confirm('Annuler « '+p.name+' » ? Les '+fa(a)+' affectés reviennent dans l\'Argent de sécurité (ton épargne totale ne change pas).'))return;
+  p.status='cancelled';p.used=0;p.closedAt=ymd(new Date());
+  afterProjChange('Projet annulé · '+fr(a)+' revenus en sécurité');
+}
+function deleteProj(id){
+  const p=projById(id);if(!p||p.moves.length)return;
+  if(!confirm('Supprimer « '+p.name+' » ?'))return;
+  projects=projects.filter(x=>x.id!==id);afterProjChange('Projet supprimé');
+}
+// ── Vue détaillée : courbe CUMULÉE mois par mois + objectif ──
+let projChart=null;
+function openProjDetail(id){
+  const p=projById(id);if(!p)return;
+  const a=projAllocated(p),act=p.status==='active';
+  // Mois du 1er mouvement (ou de création) → mois en cours (ou de clôture)
+  const first=(p.moves.map(x=>x.date).sort()[0]||p.created).slice(0,7);
+  const last=(act?ymd(new Date()):p.closedAt).slice(0,7);
+  const months=[];let k=first;
+  while(k<=last&&months.length<240){months.push(k);k=nextMk(k);}
+  if(months.length===1)months.unshift(mk(+first.slice(0,4),+first.slice(5)-2)); // au moins 2 points pour une courbe
+  const cum=months.map(key=>r2(projAllocated(p,ymd(new Date(+key.slice(0,4),+key.slice(5),0)))));
+  const pc=p.goal?Math.round(a/p.goal*100):0;
+  const moves=p.moves.slice().sort((x,y)=>y.date.localeCompare(x.date));
+  const mvRows=moves.map(x=>'<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:0.5px solid var(--b)"><span style="font-size:13px">'+fmtD(x.date)+'</span>'+
+    '<span style="display:flex;align-items:center;gap:8px"><b style="font-size:13px;color:'+(x.amount>=0?'var(--te)':'var(--co)')+'">'+(x.amount>=0?'+':'−')+fa(Math.abs(x.amount))+'</b>'+
+    (act?'<button class="txmenu" style="width:24px;height:24px;font-size:11px" onclick="delMove(\''+p.id+'\',\''+x.id+'\')">✕</button>':'')+'</span></div>').join('');
+  document.body.insertAdjacentHTML('beforeend','<div class="overlay" id="pdpop" onclick="if(event.target.id===\'pdpop\')closeOv(\'pdpop\')"><div class="modal" style="max-height:88vh;overflow-y:auto">'+
+    '<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px"><div class="lic" style="background:var(--pudim);width:42px;height:42px;font-size:22px">'+escH(p.icon)+'</div>'+
+    '<div style="flex:1;min-width:0"><div style="font-size:17px;font-weight:700">'+escH(p.name)+'</div><div style="font-size:12px;color:var(--mu)">'+
+    (act?'Projet actif':(p.status==='archived'?'Archivé le '+fmtD(p.closedAt)+' · '+fr(p.used)+' utilisés':'Annulé le '+fmtD(p.closedAt)))+'</div></div>'+
+    (act?'<button class="txmenu" onclick="closeOv(\'pdpop\');openProjAS(\''+p.id+'\')">···</button>':'')+'</div>'+
+    '<div style="font-size:24px;font-weight:700;color:var(--pu)">'+fr(a)+(p.goal?'<span style="font-size:14px;color:var(--mu);font-weight:500"> / '+fr(p.goal)+' · '+pc+' %</span>':'')+'</div>'+
+    (p.goal?'<div class="pbar" style="height:7px"><div style="height:7px;width:'+Math.min(100,pc)+'%;background:'+(pc>=100?'var(--te)':'var(--pu)')+'"></div></div>':'')+
+    '<div style="position:relative;height:190px;margin:14px 0 6px"><canvas id="pd-chart"></canvas></div>'+
+    '<div style="font-size:11px;color:var(--mu);text-align:center;margin-bottom:10px">Montant cumulé affecté à la fin de chaque mois'+(p.goal?' · pointillés = objectif':'')+'</div>'+
+    (act?'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px"><button class="btnp" style="margin:0;padding:11px;font-size:14px" onclick="openMoveForm(\''+p.id+'\',1)">+ Affecter</button>'+
+      '<button class="btnp" style="margin:0;padding:11px;font-size:14px;background:var(--s3);color:var(--tx)" onclick="openMoveForm(\''+p.id+'\',-1)">− Retirer</button></div>':'')+
+    '<div class="sh" style="margin-bottom:2px">Mouvements</div>'+(mvRows||'<div style="color:var(--mu);font-size:13px;padding:8px 0">Aucun mouvement</div>')+
+    '<button onclick="closeOv(\'pdpop\')" style="width:100%;background:var(--s3);border:none;color:var(--mu2);border-radius:12px;padding:13px;font-size:15px;cursor:pointer;font-family:inherit;margin-top:12px">Fermer</button></div></div>');
+  if(typeof Chart==='undefined')return;
+  try{if(projChart)projChart.destroy();}catch(e){}
+  const ds=[{data:cum,borderColor:'#C46BAD',backgroundColor:'rgba(196,107,173,0.12)',fill:true,tension:.25,pointRadius:3,pointBackgroundColor:'#C46BAD'}];
+  if(p.goal)ds.push({data:months.map(()=>p.goal),borderColor:'rgba(29,158,117,0.8)',borderDash:[6,4],borderWidth:1.5,pointRadius:0,fill:false});
+  projChart=new Chart(document.getElementById('pd-chart').getContext('2d'),{type:'line',data:{labels:months.map(k=>MSF[+k.slice(5)-1]+(k.slice(0,4)!==String(new Date().getFullYear())?' '+k.slice(2,4):'')),datasets:ds},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>(c.datasetIndex===1?'Objectif : ':'Cumul : ')+fr(c.parsed.y)}}},
+      scales:{x:{grid:{display:false},ticks:{color:'rgba(26,26,46,0.38)',font:{size:10}},border:{display:false}},
+        y:{beginAtZero:true,suggestedMax:p.goal?p.goal*1.08:undefined,grid:{color:'rgba(0,0,0,0.05)'},ticks:{color:'rgba(26,26,46,0.38)',font:{size:10},callback:v=>v+'€'},border:{display:false}}}}});
 }
 
 function openSavePop(type,desc){
   const d=window._saveData||{};
   let title='',sub='',items=[],total=0,color='var(--pu)';
   if(type==='reste'){
-    title='💵 Reste accumulé';sub='Salaire − dépenses de chaque mois';color='var(--te)';
+    title='💵 Reste accumulé';sub='Revenus − dépenses de chaque mois terminé';color='var(--te)';
     const sorted=(d.resteParMois||[]).slice().reverse();
     total=sorted.reduce((s,r)=>s+r.reste,0);
     items=sorted.map(({y,m,reste})=>({label:MONTHS[m]+' '+y,sub:'Revenus − dépenses nettes',amt:(reste>=0?'+':'')+fa(reste),color:reste>=0?'var(--te)':'var(--re)'}));
@@ -1785,12 +2028,12 @@ function saveRecurForm(){
 
 function resetAll(){
   if(!confirm('Supprimer TOUTES les données ?'))return;
-  expenses=[];recurring=[];monthInc={};monthBon={};lastMonth='';userAccounts=[];catLimits={};
+  expenses=[];recurring=[];projects=[];monthInc={};monthBon={};lastMonth='';userAccounts=[];catLimits={};
   categories=DEFAULT_CATS.map(normalizeCat);buildCAT();
   save();renderDash();renderSet();renderSave();buildFilter();buildCatGrid();showToast('Réinitialisé');
 }
 function exportData(){
-  const blob=new Blob([JSON.stringify({expenses,monthInc,monthBon,recurring,accounts:userAccounts,catLimits,categories},null,2)],{type:'application/json'});
+  const blob=new Blob([JSON.stringify({expenses,monthInc,monthBon,recurring,projects,accounts:userAccounts,catLimits,categories},null,2)],{type:'application/json'});
   const url=URL.createObjectURL(blob),a=document.createElement('a');
   a.href=url;a.download='monbudget_copine_backup.json';document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);
   showToast('Export téléchargé ✓');
@@ -1809,6 +2052,7 @@ function importData(input){
       else if(data.recurItems||data.recurIncome)recurring=migrateRecurring(data.recurItems||[],data.recurIncome||[]);
       if(data.accounts)    userAccounts=data.accounts;
       if(data.catLimits)   catLimits   =data.catLimits;
+      if(Array.isArray(data.projects))projects=data.projects.map(normalizeProj);
       // Catégories : si le fichier en contient (nouveau format) on les restaure ;
       // sinon (ancien backup) on garde les catégories actuelles.
       if(Array.isArray(data.categories)&&data.categories.length){
