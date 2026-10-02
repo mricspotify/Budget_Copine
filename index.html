@@ -15,8 +15,9 @@
 <style>
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 :root{
---bg:#F5F5FA;--s1:#FFFFFF;--s2:#EDEDF5;--s3:#E4E4EF;
---b:rgba(0,0,0,0.07);--b2:rgba(0,0,0,0.12);
+--bg:#F4F3F8;--s1:#FFFFFF;--s2:#FFFFFF;--s3:#F0EFF5;
+--b:rgba(26,26,46,0.06);--b2:rgba(26,26,46,0.11);
+--sh:0 1px 2px rgba(26,26,46,0.04),0 6px 18px -10px rgba(26,26,46,0.14);
 --tx:#1A1A2E;--mu:rgba(26,26,46,0.42);--mu2:rgba(26,26,46,0.62);
 --pu:#C46BAD;--pudim:rgba(196,107,173,0.10);--pubor:rgba(196,107,173,0.30);
 --te:#1D9E75;--am:#EF9F27;--co:#D85A30;--bl:#378ADD;--re:#E24B4A;
@@ -43,6 +44,10 @@ html,body{height:100%;background:var(--bg);color:var(--tx);font-family:-apple-sy
 .card.tap:active{background:var(--s3)}
 .cl{font-size:10px;color:var(--mu);text-transform:uppercase;letter-spacing:.06em;font-weight:500;margin-bottom:5px}
 .cv{font-size:19px;font-weight:600;letter-spacing:-.03em}
+.evo{font-size:10.5px;font-weight:600;margin-top:3px;min-height:13px;white-space:nowrap}
+.evo .vs{font-weight:400;color:var(--mu)}
+/* Repère « rythme théorique » — même logique/visuel que l'app perso (05, .bgpace) */
+.bgpace{position:absolute;top:-3px;width:2px;height:12px;border-radius:1px;background:var(--tx);opacity:.55;pointer-events:none}
 .sec{background:var(--s2);border:0.5px solid var(--b);border-radius:12px;padding:14px;margin-bottom:12px}
 .sh{font-size:10px;color:var(--mu);text-transform:uppercase;letter-spacing:.06em;font-weight:500;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center}
 .sh-btn{background:var(--pudim);border:0.5px solid var(--pubor);color:var(--pu);border-radius:6px;padding:3px 8px;font-size:11px;cursor:pointer;font-family:inherit}
@@ -163,6 +168,40 @@ html,body{height:100%;background:var(--bg);color:var(--tx);font-family:-apple-sy
 .remb-label.active{color:var(--te)}
 .remb-badge{font-size:10px;background:rgba(29,158,117,0.2);color:var(--te);border-radius:20px;padding:2px 8px;opacity:0;transition:opacity .2s}
 .remb-badge.show{opacity:1}
+/* Portrait uniquement (Phase 4) : en paysage sur téléphone, l'app est masquée au profit d'un message. */
+.rotate-msg{display:none}
+@media (orientation:landscape) and (max-height:500px){
+  .app,.nav{display:none!important}
+  .rotate-msg{display:flex;position:fixed;inset:0;z-index:999;background:var(--bg);flex-direction:column;align-items:center;justify-content:center;gap:10px;font-size:15px;color:var(--mu2);text-align:center;padding:20px}
+}
+/* ── Rafraîchissement visuel (Phase 4/23) ── */
+.card,.sec,.txlist,.fsec,.sav-card{border:0.5px solid var(--b);box-shadow:var(--sh);border-radius:16px}
+.sec{padding:14px 14px 10px}
+.sh{font-size:11px;font-weight:600;color:var(--mu2);letter-spacing:.05em;margin-bottom:10px}
+.cl{display:flex;align-items:center;gap:6px}
+.cl i{width:6px;height:6px;border-radius:50%;display:inline-block}
+.cv{font-size:20px;font-weight:700}
+.ptitle{font-size:24px;font-weight:700}
+.topbar{background:rgba(255,255,255,.92);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px)}
+.nav{background:rgba(255,255,255,.94);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px)}
+.nb.active svg{background:var(--pudim);border-radius:10px;padding:3px 10px;box-sizing:content-box;margin:-3px 0}
+.mnb{background:var(--s1);box-shadow:var(--sh);border-color:var(--b)}
+.catb{background:var(--s3);border-color:transparent}
+.sh-btn{border-radius:20px;padding:4px 10px;font-weight:600;white-space:nowrap}
+.sh{gap:8px}
+.as-box{background:var(--s1);border-radius:20px 20px 0 0}
+.as-item{border-radius:10px}
+/* Lignes compactes Réglages (Phases 9/21/22) : icône · titre + 1 ligne · valeur · ⋯ */
+.lrow{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:0.5px solid var(--b);cursor:pointer}
+.lrow:last-child{border-bottom:none}
+.lic{width:34px;height:34px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0}
+.lmid{flex:1;min-width:0}
+.lt{font-size:14px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ls{font-size:11.5px;color:var(--mu);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lv{font-size:13px;font-weight:600;white-space:nowrap;text-align:right}
+.lv small{display:block;font-size:10.5px;font-weight:500;color:var(--mu)}
+.lsub{font-size:10px;color:var(--mu);text-transform:uppercase;letter-spacing:.06em;font-weight:600;margin:10px 0 2px}
+.dot{width:7px;height:7px;border-radius:50%;display:inline-block;margin-right:4px;vertical-align:1px}
 </style>
 </head>
 <body>
@@ -181,10 +220,10 @@ html,body{height:100%;background:var(--bg);color:var(--tx);font-family:-apple-sy
         <div class="mnav"><button class="mnb" onclick="changeMonth(-1)">‹</button><button class="mnb" onclick="changeMonth(1)">›</button></div>
       </div>
       <div class="grid2">
-        <div class="card tap" onclick="openRevenuPop()" style="border-left:2.5px solid var(--bl)"><div class="cl">Revenu</div><div class="cv" style="color:var(--bl)" id="d-inc">—</div><div id="d-bonuses"></div></div>
-        <div class="card" style="border-left:2.5px solid var(--co)"><div class="cl">Dépensé</div><div class="cv" style="color:var(--co)" id="d-dep">—</div></div>
-        <div class="card" style="border-left:2.5px solid var(--te)"><div class="cl">Reste</div><div class="cv" style="color:var(--te)" id="d-rest">—</div></div>
-        <div class="card" style="border-left:2.5px solid var(--am)"><div class="cl">Épargne totale</div><div class="cv" style="color:var(--am)" id="d-save">—</div></div>
+        <div class="card tap" onclick="openRevenuPop()"><div class="cl"><i style="background:var(--bl)"></i>Revenu</div><div class="cv" style="color:var(--bl)" id="d-inc">—</div><div class="evo" id="d-inc-evo"></div></div>
+        <div class="card"><div class="cl"><i style="background:var(--co)"></i>Dépensé</div><div class="cv" style="color:var(--co)" id="d-dep">—</div><div class="evo" id="d-dep-evo"></div></div>
+        <div class="card"><div class="cl"><i style="background:var(--te)"></i>Reste</div><div class="cv" style="color:var(--te)" id="d-rest">—</div><div class="evo" id="d-rest-evo"></div></div>
+        <div class="card"><div class="cl"><i style="background:var(--am)"></i>Épargne totale</div><div class="cv" style="color:var(--am)" id="d-save">—</div><div class="evo" id="d-save-evo"></div></div>
       </div>
       <div id="cat-cards" style="margin-bottom:12px"></div>
       <div class="sec"><div class="sh">Suivi des budgets</div><div id="breakdown"></div></div>
@@ -243,32 +282,24 @@ html,body{height:100%;background:var(--bg);color:var(--tx);font-family:-apple-sy
 
     <!-- SETTINGS -->
     <div class="page" id="page-set"><div class="inner">
-      <div class="ptitle">Paramètres</div>
+      <div class="ptitle">Réglages</div>
       <div class="sec">
-        <div class="sh" onclick="toggleSection('inc-body')" style="cursor:pointer">Revenus mensuels<div style="display:flex;gap:8px;align-items:center"><button class="sh-btn" onclick="event.stopPropagation();openSalModal(true)">+ Ajouter</button><span id="inc-arrow" style="color:var(--mu);font-size:16px">▾</span></div></div>
-        <div id="inc-body"><div id="inc-list"></div></div>
-      </div>
-      <div class="sec">
-        <div class="sh" onclick="toggleSection('recinc-body')" style="cursor:pointer">Revenus récurrents<div style="display:flex;gap:8px;align-items:center"><button class="sh-btn" onclick="event.stopPropagation();openRecurIncModal()">+ Ajouter</button><span id="recinc-arrow" style="color:var(--mu);font-size:16px">▾</span></div></div>
-        <div id="recinc-body"><div id="recur-inc-list"></div></div>
-      </div>
-      <div class="sec">
-        <div class="sh" onclick="toggleSection('rec-body')" style="cursor:pointer">Dépenses récurrentes<div style="display:flex;gap:8px;align-items:center"><button class="sh-btn" onclick="event.stopPropagation();openRecurModal()">+ Ajouter</button><span id="rec-arrow" style="color:var(--mu);font-size:16px">▾</span></div></div>
+        <div class="sh" onclick="toggleSection('rec-body')" style="cursor:pointer">Données récurrentes<div style="display:flex;gap:8px;align-items:center"><button class="sh-btn" onclick="event.stopPropagation();openRecurForm()">+ Ajouter</button><span id="rec-arrow" style="color:var(--mu);font-size:16px">▾</span></div></div>
         <div id="rec-body"><div id="recur-list"></div></div>
       </div>
       <div class="sec">
-        <div class="sh" onclick="toggleSection('lim-body')" style="cursor:pointer">Limites des catégories<div style="display:flex;gap:8px;align-items:center"><button class="sh-btn" onclick="event.stopPropagation();openNewCatModal()">+ Ajouter</button><span id="lim-arrow" style="color:var(--mu);font-size:16px">▾</span></div></div>
+        <div class="sh" onclick="toggleSection('lim-body')" style="cursor:pointer">Limites des catégories<div style="display:flex;gap:8px;align-items:center"><button class="sh-btn" id="cat-sort-btn" onclick="event.stopPropagation();toggleCatSort()">↕ Ordre</button><button class="sh-btn" onclick="event.stopPropagation();openNewCatModal()">+ Ajouter</button><span id="lim-arrow" style="color:var(--mu);font-size:16px">▾</span></div></div>
         <div id="lim-body"><div id="lim-list"></div></div>
       </div>
       <div class="sec">
-        <div class="sh">Données</div>
-        <div class="srow"><div><div class="slbl">Nombre de dépenses</div></div><span class="sval" id="s-count">—</span></div>
-        <div class="srow"><div><div class="slbl">Réinitialiser</div><div class="ssub">Supprime tout l'historique</div></div><button onclick="resetAll()" style="background:var(--redim);border:0.5px solid var(--re);color:var(--re);border-radius:7px;padding:5px 10px;font-size:12px;cursor:pointer;font-family:inherit">Reset</button></div>
+        <div class="sh" onclick="toggleSection('inc-body')" style="cursor:pointer">Revenus mensuels<div style="display:flex;gap:8px;align-items:center"><span id="inc-arrow" style="color:var(--mu);font-size:16px">▾</span></div></div>
+        <div id="inc-body"><div id="inc-list"></div></div>
       </div>
       <div class="sec">
-        <div class="sh">Données personnelles</div>
-        <div class="srow"><div><div class="slbl">Importer mes données</div><div class="ssub">Charge un fichier .json exporté</div></div><label style="background:var(--pudim);border:0.5px solid var(--pubor);color:var(--pu);border-radius:7px;padding:5px 10px;font-size:12px;cursor:pointer">Importer<input type="file" accept=".json" onchange="importData(this)" style="display:none"></label></div>
-        <div class="srow"><div><div class="slbl">Exporter mes données</div><div class="ssub">Télécharge un fichier .json de sauvegarde</div></div><button onclick="exportData()" class="smb">Exporter</button></div>
+        <div class="sh">Autres paramètres</div>
+        <div class="lrow" onclick="exportData()"><div class="lic" style="background:var(--pudim)">💾</div><div class="lmid"><div class="lt">Exporter mes données</div><div class="ls">Fichier de sauvegarde .json</div></div><span style="color:var(--mu)">›</span></div>
+        <label class="lrow"><div class="lic" style="background:var(--pudim)">📂</div><div class="lmid"><div class="lt">Importer une sauvegarde</div><div class="ls"><span id="s-count">—</span> dépenses enregistrées</div></div><span style="color:var(--mu)">›</span><input type="file" accept=".json" onchange="importData(this)" style="display:none"></label>
+        <div class="lrow" onclick="resetAll()"><div class="lic" style="background:var(--redim)">🗑️</div><div class="lmid"><div class="lt" style="color:var(--re)">Tout réinitialiser</div><div class="ls">Supprime tout l'historique</div></div></div>
       </div>
     </div></div>
 
@@ -284,12 +315,14 @@ html,body{height:100%;background:var(--bg);color:var(--tx);font-family:-apple-sy
   </nav>
 </div>
 <div class="toast" id="toast"></div>
+<div class="rotate-msg"><div style="font-size:40px">📱</div><div>Tourne ton téléphone en mode portrait</div></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script>
 // ─── Constants ────────────────────────────────
 const MONTHS=['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
 const MS=['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'];
+const MSF=['janv.','févr.','mars','avr.','mai','juin','juil.','août','sept.','oct.','nov.','déc.']; // abréviations françaises correctes
 
 // Catégories personnalisées
 // "remb" = flag sur une transaction : dépense remboursée / retour article
@@ -326,19 +359,19 @@ const EPARGNE_KEY='epargne_prev';
 const LIMIT_EXTRA={epargne_prev:{label:'Objectif d\'épargne',icon:'💶',color:'#1D9E75',objective:true}};
 function limMeta(k){return CAT[k]||LIMIT_EXTRA[k]||CAT.autre;}
 
-const SK='bg11_c',SR='br11_c',SI='bi11_c',SB='bb11_c',SL='bl11_c',SC='bg11_c_cats';
+const SK='bg11_c',SR='br11_c',SI='bi11_c',SB='bb11_c',SL='bl11_c',SC='bg11_c_cats',RK='bg11_c_recur2';
 
 // ─── State ────────────────────────────────────
-let expenses=[],recurItems=[],recurIncome=[],monthInc={},monthBon={},userAccounts=[],catLimits={};
-let lastMonth='',offset=0,editId=null,selCatVal=null,histFilt='all',selRecurCat=null,tChart=null;
+let _recMigrated=false;
+let expenses=[],recurring=[],monthInc={},monthBon={},userAccounts=[],catLimits={};
+let lastMonth='',offset=0,editId=null,selCatVal=null,histFilt='all',tChart=null;
 let isRemb=false,isPetsitting=false;
 
 // ─── Persistence ──────────────────────────────
 function save(){
   try{
     localStorage.setItem(SK,JSON.stringify(expenses));
-    localStorage.setItem(SR,JSON.stringify(recurItems));
-    localStorage.setItem('bg11_c_rc',JSON.stringify(recurIncome));
+    localStorage.setItem(RK,JSON.stringify(recurring)); // anciennes clés br11_c / bg11_c_rc laissées intactes (retour arrière possible)
     localStorage.setItem(SI,JSON.stringify(monthInc));
     localStorage.setItem(SB,JSON.stringify(monthBon));
     localStorage.setItem(SL,lastMonth);
@@ -355,12 +388,59 @@ function normalizeCat(c){
     key:c.key, label:c.label, icon:c.icon, color:c.color,
     custom:c.custom===true,          // créée par l'utilisatrice ?
     startMonth:c.startMonth||null,   // 'AAAA-MM' — mois de début d'activation (null = depuis toujours)
-    endMonth:c.endMonth||null,       // 'AAAA-MM' — inactive À PARTIR de ce mois (null = toujours active)
     archived:c.archived===true,      // rangée : cachée des menus, historique conservé
-    budgetType:c.budgetType||'none', // 'none' | 'annual' (le mensuel reste dans catLimits)
-    budgetAmount:typeof c.budgetAmount==='number'?c.budgetAmount:0,
-    mutedMonths:Array.isArray(c.mutedMonths)?c.mutedMonths.slice():[] // mois 'AAAA-MM' ignorés à la main (indépendant de l'archivage)
+    // Budgets sur période (Phases 17-19) : [{id,start:'AAAA-MM-JJ',end:'AAAA-MM-JJ',amount}].
+    // Le budget MENSUEL reste dans catLimits ; une catégorie est mensuelle XOR période.
+    periods:Array.isArray(c.periods)?c.periods.map(x=>({id:x.id||('p'+Math.random().toString(36).slice(2,8)),start:x.start,end:x.end,amount:+x.amount||0})):migratePeriods(c),
+    // Historique d'activation : [{from:'AAAA-MM', on:bool}] trié. L'état d'un mois =
+    // le dernier événement dont from <= ce mois (aucun événement → active).
+    activity:Array.isArray(c.activity)?c.activity.map(a=>({from:a.from,on:!!a.on})):migrateActivity(c)
   };
+}
+// Ancien « budget annuel » (année civile) → période 1er janv. → 31 déc. de l'année en cours
+// (début repoussé au mois d'activation si la catégorie a démarré en cours d'année).
+function migratePeriods(c){
+  if(c.budgetType!=='annual'||!(c.budgetAmount>0))return [];
+  const y=new Date().getFullYear();
+  let start=y+'-01-01';
+  if(c.startMonth&&c.startMonth>y+'-01'&&c.startMonth<=y+'-12')start=c.startMonth+'-01';
+  return [{id:'p'+Date.now().toString(36),start,end:y+'-12-31',amount:c.budgetAmount}];
+}
+function nextMk(key){const p=key.split('-').map(Number);return mk(p[1]===12?p[0]+1:p[0],p[1]===12?0:p[1]);}
+// Migration de l'ancien modèle (mutedMonths = mois isolés, endMonth) vers l'historique.
+// Une série de mois ignorés devient « inactive à partir de X » ; elle redevient active
+// au mois suivant SEULEMENT si ce mois est déjà passé ou en cours (sinon : reste inactive
+// → corrige « Vacances désactivée en octobre réapparaît en novembre »).
+function migrateActivity(c){
+  const ev=[];
+  const now=new Date(),cur=mk(now.getFullYear(),now.getMonth());
+  const muted=(Array.isArray(c.mutedMonths)?c.mutedMonths:[]).slice().sort();
+  muted.forEach(x=>{
+    const prev=ev[ev.length-1];
+    if(prev&&!prev.on&&prev._last&&nextMk(prev._last)===x){prev._last=x;return;}
+    ev.push({from:x,on:false,_last:x});
+  });
+  const out=[];
+  ev.forEach(e=>{out.push({from:e.from,on:false});const back=nextMk(e._last);if(back<=cur)out.push({from:back,on:true});});
+  if(c.endMonth)out.push({from:c.endMonth,on:false});
+  return normalizeActivity(out);
+}
+// Trie + supprime les événements redondants (même état que le précédent).
+function normalizeActivity(list){
+  const s=list.slice().sort((a,b)=>a.from.localeCompare(b.from));
+  const out=[];let state=true;
+  s.forEach(e=>{if(out.length&&out[out.length-1].from===e.from)out.pop();out.push(e);});
+  return out.filter(e=>{if(e.on===state)return false;state=e.on;return true;});
+}
+function catOnAt(c,key){
+  let on=true;(c.activity||[]).forEach(e=>{if(e.from<=key)on=e.on;});return on;
+}
+// Active / désactive une catégorie À PARTIR d'un mois (les mois d'avant ne bougent pas).
+function setCatActivity(k,on,fromKey){
+  const c=catByKey(k);if(!c)return;
+  const kept=(c.activity||[]).filter(e=>e.from<fromKey);
+  kept.push({from:fromKey,on});
+  c.activity=normalizeActivity(kept);
 }
 function loadCategories(){
   let stored=null;
@@ -385,48 +465,76 @@ function catByKey(k){return categories.find(c=>c.key===k);}
 function catActiveForMonth(c,y,m){
   if(!c||c.archived) return false;
   const key=mk(y,m);
-  if(c.mutedMonths&&c.mutedMonths.includes(key)) return false; // désactivée à la main pour ce mois
   if(c.startMonth && key<c.startMonth) return false;
-  if(c.endMonth && key>=c.endMonth) return false;
-  return true;
+  return catOnAt(c,key); // état au mois CONSULTÉ, pas l'état actuel
 }
-// Bascule "suivi / ignoré" de la catégorie pour LE MOIS EN COURS (n'archive ni ne supprime).
+// Interrupteur Réglages : propose « à partir de quand » (ce mois / mois prochain / au choix).
 function toggleCatMonth(k){
   const c=catByKey(k);if(!c)return;
-  if(!Array.isArray(c.mutedMonths))c.mutedMonths=[];
-  const now=new Date(),key=mk(now.getFullYear(),now.getMonth());
-  const i=c.mutedMonths.indexOf(key);
-  if(i>=0)c.mutedMonths.splice(i,1); else c.mutedMonths.push(key);
-  save();renderSet();renderDash();buildCatGrid();
-  showToast(i>=0?'Suivi réactivé ce mois ✓':'Catégorie ignorée ce mois');
-}
-function moLabel(key){const p=key.split('-');return MS[parseInt(p[1],10)-1].toLowerCase()+'. '+p[0];}
-// Cumul NET (dépenses − remboursements) d'une catégorie sur UNE année civile,
-// à partir de son mois d'activation (dépenses antérieures exclues — spec §20).
-// Les années sont indépendantes (filtre strict sur `year`).
-function annualSpent(key,year){
-  const def=catByKey(key);let net=0;
-  expenses.forEach(e=>{
-    if(e.cat!==key) return;
-    const d=new Date(e.date);
-    if(d.getFullYear()!==year) return;
-    if(def&&def.startMonth&&mk(d.getFullYear(),d.getMonth())<def.startMonth) return;
-    net += e.remb ? -e.amount : e.amount;
+  const now=new Date(),cur=mk(now.getFullYear(),now.getMonth());
+  const on=!catActiveForMonth(c,now.getFullYear(),now.getMonth());
+  openEffectPicker((on?'Réactiver':'Désactiver')+' « '+c.label+' »',from=>{
+    setCatActivity(k,on,from);
+    save();renderSet();renderDash();buildCatGrid();
+    showToast((on?'Active':'Inactive')+' à partir de '+moLabel(from)+(from===cur?'':' ✓'));
   });
+}
+// Feuille commune « À partir de quand ? » — réutilisée par les catégories et les récurrences.
+function openEffectPicker(title,cb){
+  const now=new Date(),cur=mk(now.getFullYear(),now.getMonth()),nxt=nextMk(cur);
+  window._effectCb=cb;
+  const close="document.getElementById('xeff').remove()";
+  document.body.insertAdjacentHTML('beforeend',
+    '<div class="as" id="xeff" onclick="if(event.target.classList.contains(\'as-bg\'))'+close+'"><div class="as-bg"></div><div class="as-box">'+
+    '<div style="text-align:center;padding:6px 8px 12px;font-size:13px;color:var(--mu);border-bottom:0.5px solid var(--b);margin-bottom:4px"><b style="color:var(--tx)">'+escH(title)+'</b><br>À partir de quand ?</div>'+
+    '<div class="as-item" onclick="'+close+';_effectCb(\''+cur+'\')"><span style="font-size:18px">📍</span><span>Ce mois-ci <span style="color:var(--mu);font-size:13px">('+moLabel(cur)+')</span></span></div>'+
+    '<div class="as-item" onclick="'+close+';_effectCb(\''+nxt+'\')"><span style="font-size:18px">⏭️</span><span>Le mois prochain <span style="color:var(--mu);font-size:13px">('+moLabel(nxt)+')</span></span></div>'+
+    '<div class="as-item" style="gap:10px"><span style="font-size:18px">🗓️</span><span style="flex:1">Un autre mois</span><input type="month" id="eff-month" value="'+cur+'" class="fi" style="width:auto;padding:6px 8px;font-size:13px"><button class="smb" onclick="const v=document.getElementById(\'eff-month\').value;if(!v)return;'+close+';_effectCb(v)">OK</button></div>'+
+    '<button class="as-cancel" onclick="'+close+'">Annuler</button></div></div>');
+}
+// Échappement HTML pour tout texte saisi par l'utilisatrice injecté dans du HTML.
+function escH(s){return String(s).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));}
+function moLabel(key){const p=key.split('-');return MSF[parseInt(p[1],10)-1]+' '+p[0];}
+// ── Budgets sur période (Phases 17-20) ──
+// Dates 'AAAA-MM-JJ' (comparables en texte). Aucune hypothèse année civile/scolaire :
+// seules les dates saisies comptent.
+function ymd(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function parseYmd(s){const p=s.split('-').map(Number);return new Date(p[0],p[1]-1,p[2]);}
+function fmtD(s){const d=parseYmd(s);return d.getDate()+(d.getDate()===1?'ᵉʳ':'')+' '+MSF[d.getMonth()]+' '+d.getFullYear();}
+function shiftYear(s,n){const p=s.split('-').map(Number);const d=new Date(p[0]+n,p[1]-1,1);d.setDate(Math.min(p[2],new Date(p[0]+n,p[1],0).getDate()));return ymd(d);}
+function latestPeriod(c){return c&&c.periods&&c.periods.length?c.periods.slice().sort((a,b)=>a.start.localeCompare(b.start))[c.periods.length-1]:null;}
+// Cumul NET (dépenses − remboursements) de la catégorie entre start et end INCLUS.
+function periodSpent(key,p){
+  let net=0;
+  expenses.forEach(e=>{if(e.cat!==key||e.date<p.start||e.date>p.end)return;net+=e.remb?-e.amount:e.amount;});
   return net;
+}
+// Avancement de la période aujourd'hui (0-1), null si aujourd'hui est hors période.
+function periodPace(p){
+  const t=ymd(new Date());if(t<p.start||t>p.end)return null;
+  const day=864e5,a=parseYmd(p.start),b=parseYmd(p.end),n=parseYmd(t);
+  return (Math.round((n-a)/day)+1)/(Math.round((b-a)/day)+1);
 }
 function load(){
   loadCategories();buildCAT();
   try{
     expenses   =JSON.parse(localStorage.getItem(SK))||[];
-    recurItems =JSON.parse(localStorage.getItem(SR))||[];
-    recurIncome=JSON.parse(localStorage.getItem('bg11_c_rc'))||[];
     monthInc   =JSON.parse(localStorage.getItem(SI))||{};
     monthBon   =JSON.parse(localStorage.getItem(SB))||{};
     lastMonth  =localStorage.getItem(SL)||'';
     userAccounts=JSON.parse(localStorage.getItem('bg11_c_acc'))||[];
     catLimits=JSON.parse(localStorage.getItem('bg11_c_lim'))||{};
-  }catch(e){expenses=[];recurItems=[];monthInc={};monthBon={};userAccounts=[];catLimits={};}
+  }catch(e){expenses=[];monthInc={};monthBon={};userAccounts=[];catLimits={};}
+  // Données récurrentes : nouveau format (clé dédiée) sinon migration des 2 anciennes listes.
+  // La migration lit expenses/monthBon → doit venir APRÈS leur chargement.
+  let r2=null;try{r2=JSON.parse(localStorage.getItem(RK));}catch(e){r2=null;}
+  if(Array.isArray(r2))recurring=r2.map(normalizeRecur);
+  else{
+    let oe=[],oi=[];
+    try{oe=JSON.parse(localStorage.getItem(SR))||[];oi=JSON.parse(localStorage.getItem('bg11_c_rc'))||[];}catch(e){}
+    recurring=migrateRecurring(oe,oi);
+    _recMigrated=true; // sauvegardé dès l'init → la migration ne tourne qu'une fois
+  }
 }
 
 // ─── Supabase ─────────────────────────────────
@@ -479,16 +587,7 @@ function checkMonth(){
   const now=new Date(),key=mk(now.getFullYear(),now.getMonth());
   if(key===lastMonth)return;
   lastMonth=key;
-  const d=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')+'-01';
-  recurItems.filter(r=>r.active).forEach(r=>{
-    if(!expenses.some(e=>e.date===d&&e.desc===r.desc&&e.recurId===r.id))
-      expenses.unshift({id:Date.now().toString()+r.id,date:d,desc:r.desc,amount:r.amount,cat:r.cat,recurId:r.id});
-  });
-  recurIncome.filter(r=>r.active).forEach(r=>{
-    if(!monthBon[key])monthBon[key]=[];
-    if(!monthBon[key].some(b=>b.recurId===r.id))
-      monthBon[key].push({desc:r.desc,amount:r.amount,recurId:r.id});
-  });
+  syncRecurring(); // occurrences du mois (et des mois manqués) — voir Données récurrentes
   save();
   if(!monthInc[key])setTimeout(()=>openSalModal(false),600);
   else setTimeout(()=>openBackupModal(),800);
@@ -566,10 +665,10 @@ function renderDash(){
   document.getElementById('d-dep').textContent=fa(total);
   const re=document.getElementById('d-rest');re.textContent=fa(rest);re.style.color=rest>=0?'var(--te)':'var(--re)';
   document.getElementById('d-save').textContent=fr(calcSaveTotalUpTo(y,m)+userAccounts.reduce((s,a)=>s+a.balance,0));
-  document.getElementById('d-bonuses').innerHTML='';
+  renderEvolutions(y,m);
 
   const cc=document.getElementById('cat-cards');
-  const mkCC=(k)=>{const c=CAT[k],v=by[k]||0;const vc=v>0?c.color:v<0?'var(--te)':'var(--mu)';return '<div class="card tap" onclick="openCatPop(\''+k+'\','+y+','+m+')" style="text-align:center;padding:11px 8px"><div style="font-size:20px;margin-bottom:3px">'+c.icon+'</div><div style="font-size:10px;color:var(--mu);text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px">'+c.label+'</div><div style="font-size:14px;font-weight:600;color:'+vc+'">'+fa(v)+'</div></div>';};
+  const mkCC=(k)=>{const c=CAT[k],v=by[k]||0;const vc=v>0?c.color:v<0?'var(--te)':'var(--mu)';return '<div class="card tap" onclick="openCatPop(\''+k+'\','+y+','+m+')" style="text-align:center;padding:9px 4px;min-width:0"><div style="font-size:18px;margin-bottom:2px">'+c.icon+'</div><div style="font-size:10px;color:var(--mu);margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+escH(c.label)+'</div><div style="font-size:13px;font-weight:700;color:'+vc+'">'+fr(v)+'</div></div>';};
   // Catégories de dépense actives pour le mois affiché (défauts = toujours actives → rendu inchangé).
   const shownCats=categories.filter(c=>c.key!=='revenu'&&catActiveForMonth(c,y,m)).map(c=>c.key);
   // Chunk en lignes de 4, chaque ligne étirée (repeat n) → 7 défauts = 4+3, identique à avant.
@@ -607,23 +706,28 @@ function renderDash(){
       '<span style="font-size:11px;color:var(--mu)"> / '+fr(limit)+'</span>'+
       (isOver&&limit>=1?'<span style="font-size:10px;font-weight:600;color:var(--re);background:var(--redim);border-radius:4px;padding:1px 5px">'+pctDisplay+'%</span>':'')+
       '</div></div>'+
-      '<div style="width:100%;height:6px;background:var(--s3);border-radius:3px;overflow:hidden;position:relative">'+
+      '<div style="position:relative"><div style="width:100%;height:6px;background:var(--s3);border-radius:3px;overflow:hidden;position:relative">'+
       '<div style="position:absolute;left:0;top:0;height:6px;'+(isOver?'border-radius:3px 0 0 3px;':'border-radius:3px;')+'background:'+c.color+';width:'+normalPct+'%"></div>'+
       (isOver?'<div style="position:absolute;left:'+normalPct+'%;top:0;height:6px;border-radius:0 3px 3px 0;background:var(--re);width:'+overBarPct+'%"></div>':'')+
-      '</div></div>';
+      '</div>'+
+      // Repère informatif : dépense théorique = limite × avancement du mois, placé sur la même échelle que la barre.
+      (opts.pace!=null&&limit>0?'<div class="bgpace" title="Rythme théorique : '+fr(limit*opts.pace)+'" style="left:'+(opts.pace*limit/Math.max(limit,spent)*100).toFixed(1)+'%"></div>':'')+
+      '</div>'+(opts.sub?'<div style="font-size:11px;color:var(--mu);margin-top:5px">'+opts.sub+'</div>':'')+'</div>';
   };
   // ── Suivi des budgets (Correctifs 4-7 : dépenses prioritaires, l'épargne s'adapte) ──
   // Hiérarchie : 1.revenus 2.dépenses réelles 3.budgets prévisionnels restants 4.disponible 5.objectif épargne.
   // L'objectif d'épargne ne bloque JAMAIS le disponible. Toute dépense (même "Autre" sans limite) réduit le disponible.
-  const SPEND_CATS=Object.keys(CAT).filter(k=>k!=='revenu'&&k!=='autre');
-  const ORDER=['fixes','transport','courses','sante','nooka','extras_mamie'];
-  const orderedCats=[...ORDER.filter(k=>SPEND_CATS.includes(k)),...SPEND_CATS.filter(k=>!ORDER.includes(k))];
+  // Ordre UNIQUE = ordre du tableau `categories` (réglable dans Réglages, ↑↓).
+  const orderedCats=categories.map(c=>c.key).filter(k=>k!=='revenu'&&k!=='autre');
   let unusedBudgets=0;const catBars=[];
+  // Phase 3 — avancement du mois (mois EN COURS uniquement ; passé/futur : pas de repère).
+  const _now=new Date(),isCurMonth=y===_now.getFullYear()&&m===_now.getMonth();
+  const pace=isCurMonth?_now.getDate()/new Date(y,m+1,0).getDate():null;
   orderedCats.forEach(k=>{
     const cdef=catByKey(k);
     if(cdef&&!catActiveForMonth(cdef,y,m)) return; // pas de barre hors période d'activation
     const spent=by[k]||0,lim=catLimits[k];
-    if(lim){unusedBudgets+=Math.max(lim-spent,0);catBars.push(mkBudgetBar(k,spent,lim));}
+    if(lim){unusedBudgets+=Math.max(lim-spent,0);catBars.push(mkBudgetBar(k,spent,lim,{pace}));}
   });
   const autreSpent=by['autre']||0,autreLim=catLimits['autre'];
   if(autreLim)unusedBudgets+=Math.max(autreLim-autreSpent,0);
@@ -640,7 +744,7 @@ function renderDash(){
   // 📌 Autre sans limite : max = Disponible supplémentaire "de départ" (= disponible + dépenses Autre, recalculé APRÈS l'épargne) ;
   //   progression = dépenses Autre réelles. Les dépenses Autre réduisent le disponible (via `total`) sans altérer directement la barre.
   const autreBar=autreLim
-    ? mkBudgetBar('autre',autreSpent,autreLim)
+    ? mkBudgetBar('autre',autreSpent,autreLim,{pace})
     : mkBudgetBar('autre',autreSpent,Math.max(disponible+autreSpent,0),{suffix:'<span style="font-size:10px;color:var(--mu);margin-left:4px">(dispo)</span>'});
   // 📈 Prévisions non utilisées : marges restantes des catégories à limite.
   // Alerte : revenus insuffisants pour couvrir les budgets + l'objectif d'épargne.
@@ -655,15 +759,19 @@ function renderDash(){
   const alertRow=objectifsInatteignables?'<div style="display:flex;align-items:center;gap:7px;padding:9px 11px;margin-top:8px;background:var(--redim);border:0.5px solid rgba(226,75,74,0.32);border-radius:8px"><span style="font-size:15px">⚠️</span><span style="font-size:11px;color:var(--re);line-height:1.35">Attention : revenus insuffisants pour atteindre les objectifs définis.</span></div>':'';
   // Zone 1 (budgets de dépenses) | séparateur | Zone 2 (Objectif épargne → Disponible+alerte → Prévisions)
   document.getElementById('breakdown').innerHTML=[...catBars,autreBar,sepRow,epargneBar,dispoRow,alertRow,previsionsRow].filter(Boolean).join('');
-  // ── 📅 Budgets annuels (bloc séparé, isolé du calcul mensuel ci-dessus) ──
-  // Le cumul est celui de l'ANNÉE affichée (y). Les dépenses sont déjà comptées
-  // dans `total` plus haut ; ici on ne fait QUE le suivi de l'enveloppe annuelle.
-  const annualCats=categories.filter(c=>c.budgetType==='annual'&&c.budgetAmount>0&&!c.archived);
+  // ── 📅 Budgets sur période (bloc séparé, ISOLÉ du calcul mensuel ci-dessus) ──
+  // Affiche les périodes qui recouvrent le mois consulté. Cumul = dépenses de la catégorie
+  // entre les dates de la période (pas l'année civile). Les dépenses restent comptées
+  // normalement dans `total` du mois ; ici on ne fait QUE le suivi de l'enveloppe.
+  const mStart=ymd(new Date(y,m,1)),mEnd=ymd(new Date(y,m+1,0));
+  const pBars=[];
+  categories.filter(c=>!c.archived&&c.periods&&c.periods.length).forEach(c=>{
+    c.periods.filter(p=>p.start<=mEnd&&p.end>=mStart).sort((a,b)=>a.start.localeCompare(b.start)).forEach(p=>{
+      pBars.push(mkBudgetBar(c.key,periodSpent(c.key,p),p.amount,{pace:periodPace(p),sub:fmtD(p.start)+' → '+fmtD(p.end)}));
+    });
+  });
   const aa=document.getElementById('annual-area');
-  if(annualCats.length){
-    const aBars=annualCats.map(c=>mkBudgetBar(c.key,annualSpent(c.key,y),c.budgetAmount)).join('');
-    aa.innerHTML='<div class="sec"><div class="sh">📅 Budgets annuels — '+y+'</div>'+aBars+'</div>';
-  } else aa.innerHTML='';
+  aa.innerHTML=pBars.length?'<div class="sec"><div class="sh">📅 Budgets sur période</div>'+pBars.join('')+'</div>':'';
   // ── Card petsitting ──
   const nowYear=new Date().getFullYear();
   const petsitAnnual=expenses.filter(e=>e.petsitting&&e.cat==='revenu'&&new Date(e.date).getFullYear()===nowYear).reduce((s,e)=>s+e.amount,0);
@@ -675,6 +783,32 @@ function renderDash(){
       '<div><div style="font-size:22px;font-weight:700;color:var(--pu);letter-spacing:-.03em">'+fr(petsitAnnual)+'</div>'+
       '<div style="font-size:12px;color:var(--mu);margin-top:2px">Cumulé depuis le 1ᵉʳ janv. '+nowYear+'</div></div></div></div>';
   } else {pc.innerHTML='';}
+}
+
+// ── Phase 2 : évolution vs mois précédent des 4 indicateurs ──
+// Chaque indicateur a son propre calcul ; la couleur dépend du SENS souhaitable
+// (revenus/reste/épargne : hausse = vert ; dépenses : hausse = rouge).
+function monthHasData(y,m){return getAllMonths().includes(mk(y,m));}
+function monthFigures(y,m){
+  const inc=monthRevTotal(y,m),dep=monthNetDep(y,m);
+  return {inc,dep,rest:inc-dep,save:calcSaveTotalUpTo(y,m)+userAccounts.reduce((s,a)=>s+a.balance,0)};
+}
+function renderEvolutions(y,m){
+  const p=new Date(y,m-1,1),py=p.getFullYear(),pm=p.getMonth();
+  const ok=monthHasData(y,m)&&monthHasData(py,pm);
+  const cur=ok?monthFigures(y,m):null,prev=ok?monthFigures(py,pm):null;
+  const vs=MSF[pm];
+  [['inc',true],['dep',false],['rest',true],['save',true]].forEach(([k,upIsGood])=>{
+    const el=document.getElementById('d-'+k+'-evo');if(!el)return;
+    el.textContent='';
+    if(!ok||Math.abs(prev[k])<0.005)return; // pas de base de comparaison → rien plutôt qu'un % absurde
+    const pct=(cur[k]-prev[k])/Math.abs(prev[k])*100,r=Math.round(pct);
+    const v=document.createElement('span');
+    if(r===0){v.textContent='= ';v.style.color='var(--mu)';}
+    else{v.textContent=(r>0?'+':'−')+Math.abs(r)+' % ';v.style.color=((r>0)===upIsGood)?'var(--te)':'var(--re)';}
+    const s=document.createElement('span');s.className='vs';s.textContent='vs '+vs;
+    el.append(v,s);
+  });
 }
 
 // Popup détail Revenu
@@ -772,7 +906,9 @@ function buildStackedDep(months){
   const ranked=cats.filter(k=>totals[k]>0).sort((a,b)=>totals[b]-totals[a]);
   const top=ranked.slice(0,5),rest=ranked.slice(5);
   const ds=top.map(k=>({label:CAT[k].label,data:months.map(({y,m})=>+Math.max(monthNetDep(y,m,k),0).toFixed(2)),backgroundColor:CAT[k].color,borderRadius:4,borderSkipped:false,stack:'d'}));
-  if(rest.length)ds.push({label:'Autres',data:months.map(({y,m})=>+rest.reduce((s,k)=>s+Math.max(monthNetDep(y,m,k),0),0).toFixed(2)),backgroundColor:'#888780',borderRadius:4,borderSkipped:false,stack:'d'});
+  // Regroupement des petites catégories (au-delà du top 5) — couleur DISTINCTE du gris de la
+  // catégorie « 📌 Autre » (#888780) : avant, les deux avaient le même gris → deux zones grises.
+  if(rest.length)ds.push({label:'Regroupées ('+rest.map(k=>CAT[k].label).join(', ')+')',data:months.map(({y,m})=>+rest.reduce((s,k)=>s+Math.max(monthNetDep(y,m,k),0),0).toFixed(2)),backgroundColor:'#D6D3E0',borderRadius:4,borderSkipped:false,stack:'d'});
   if(!ds.length)ds.push({label:'Dépenses',data:months.map(()=>0),backgroundColor:CHART_DEF.dep.color,stack:'d'});
   return ds;
 }
@@ -1102,10 +1238,8 @@ function deleteAccount(idx){
 // ─── Settings ─────────────────────────────────
 function renderSet(){
   document.getElementById('s-count').textContent=expenses.length;
-  const entries=Object.entries(monthInc).sort((a,b)=>b[0].localeCompare(a[0]));
-  document.getElementById('inc-list').innerHTML=entries.length?entries.map(([k,v])=>{const[y,m]=k.split('-');return '<div class="incrow"><div><div style="font-size:13px">'+MONTHS[parseInt(m)-1]+' '+y+'</div></div><div style="display:flex;align-items:center;gap:8px"><span style="font-size:13px;font-weight:600;color:var(--te)">'+fa(v)+'</span><button class="smb" onclick="editInc(\''+k+'\','+v+')">Modifier</button></div></div>';}).join(''):'<div style="color:var(--mu);font-size:13px;padding:8px 0">Aucun revenu</div>';
-  document.getElementById('recur-inc-list').innerHTML=recurIncome.length?recurIncome.map(r=>'<div class="recur-item"><div style="font-size:18px">💸</div><div class="recur-info"><div class="recur-name">'+r.desc+'</div><div class="recur-amt">+'+fa(r.amount)+' · mensuel</div></div><div style="display:flex;gap:6px;align-items:center"><button class="txmenu" onclick="openRecurIncAS(\''+r.id+'\',event)">···</button><button class="toggle '+(r.active?'on':'off')+'" onclick="toggleRecurInc(\''+r.id+'\')"></button></div></div>').join(''):'<div style="color:var(--mu);font-size:13px;padding:8px 0">Aucun revenu récurrent</div>';
-  document.getElementById('recur-list').innerHTML=recurItems.map(r=>'<div class="recur-item"><div style="font-size:18px">'+(CAT[r.cat]?.icon||'📌')+'</div><div class="recur-info"><div class="recur-name">'+r.desc+'</div><div class="recur-amt">'+fa(r.amount)+' · '+(CAT[r.cat]?.label||'Autre')+'</div></div><div style="display:flex;gap:6px;align-items:center"><button class="txmenu" onclick="openRecurAS(\''+r.id+'\',event)">···</button><button class="toggle '+(r.active?'on':'off')+'" onclick="toggleRecur(\''+r.id+'\')"></button></div></div>').join('');
+  renderIncNav();
+  renderRecurring();
   renderCatManager();
 }
 // ── Gestionnaire de catégories (étape 2) ──
@@ -1116,7 +1250,7 @@ function catSinceLabel(def){
   const activeNow=catActiveForMonth(def,curY,curM);
   let floor=cur;
   if(def.startMonth&&def.startMonth<floor)floor=def.startMonth;
-  (def.mutedMonths||[]).forEach(x=>{if(x<floor)floor=x;});
+  (def.activity||[]).forEach(x=>{if(x.from<floor)floor=x.from;});
   const _am=getAllMonths();if(_am.length&&_am[0]<floor)floor=_am[0]; // premier mois de suivi de l'app
   expenses.forEach(e=>{if(e.cat===def.key){const d=new Date(e.date);const kk=mk(d.getFullYear(),d.getMonth());if(kk<floor)floor=kk;}});
   let y=curY,m=curM,since=cur,guard=0;
@@ -1129,52 +1263,72 @@ function catSinceLabel(def){
   }
   return {activeNow,since};
 }
+function catBudgetText(k){
+  const def=catByKey(k),lim=catLimits[k],lp=latestPeriod(def),isObj=!!limMeta(k).objective;
+  if(lim)return {v:fr(lim),u:isObj?'objectif / mois':'par mois'};
+  if(lp)return {v:fr(lp.amount),u:fmtD(lp.start).replace(/ \d{4}$/,'')+' → '+fmtD(lp.end)};
+  return {v:'—',u:isObj?'aucun objectif':'pas de budget'};
+}
 function catManageRow(k){
-  const c=limMeta(k),lim=catLimits[k],isObj=!!c.objective,def=catByKey(k);
-  const isCustom=def&&def.custom;
-  const annualB=!!(def&&def.budgetType==='annual'&&def.budgetAmount>0);
-  const hasBudget=!!lim||annualB;
-  const canManage=def&&!CORE_KEYS.includes(k)&&!isObj; // renommer / archiver / supprimer
-  // État courant + "depuis quand" (mois en cours). Actif par défaut.
-  const info=canManage?catSinceLabel(def):null;
-  const activeNow=info?info.activeNow:true;
-  let sub;
-  if(isObj) sub=lim?('Objectif : '+fr(lim)):'Aucun objectif';
-  else if(annualB) sub='Budget annuel : '+fr(def.budgetAmount);
-  else sub=lim?('Limite mensuelle : '+fr(lim)):'Aucun budget';
+  const c=limMeta(k),def=catByKey(k),isObj=!!c.objective;
+  const canManage=def&&!CORE_KEYS.includes(k)&&!isObj;
+  const b=catBudgetText(k),t=ymd(new Date());
+  // 1 ligne de statut, seulement quand c'est utile (inactive, changement programmé, période terminée).
+  const notes=[];
   if(canManage){
-    const col=activeNow?'var(--te)':'var(--am)';
-    const word=activeNow?'Actif':'Inactif';
-    sub+=' · <span style="color:'+col+'">'+word+' depuis '+moLabel(info.since)+'</span>';
+    const info=catSinceLabel(def);
+    if(!info.activeNow)notes.push('<span style="color:var(--am)">inactive</span>');
+    const _n=new Date(),nextEv=(def.activity||[]).find(e=>e.from>mk(_n.getFullYear(),_n.getMonth()));
+    if(nextEv)notes.push((nextEv.on?'active':'inactive')+' dès '+moLabel(nextEv.from));
   }
-  // Tout sur une seule ligne à droite : interrupteur du mois + budget + menu.
-  return '<div class="incrow">'+
-    '<div style="display:flex;align-items:center;gap:8px;flex:1;min-width:0">'+
-    '<span style="font-size:18px">'+c.icon+'</span>'+
-    '<div style="min-width:0"><div style="font-size:13px">'+c.label+'</div>'+
-    '<div style="font-size:11px;color:var(--mu)">'+sub+'</div></div></div>'+
-    '<div style="display:flex;align-items:center;gap:6px;flex-shrink:0">'+
-    (canManage?'<button class="toggle '+(activeNow?'on':'off')+'" title="Suivi ce mois-ci" onclick="toggleCatMonth(\''+k+'\')"></button>':'')+
-    (hasBudget?'<button class="smb" style="background:var(--redim);border-color:var(--re);color:var(--re)" onclick="removeCatLimit(\''+k+'\')">✕</button>':'')+
-    '<button class="smb" onclick="openCatLimitModal(\''+k+'\')">'+(hasBudget?'Modifier':'+ Définir')+'</button>'+
-    (canManage?'<button class="txmenu" onclick="openCatManageAS(\''+k+'\',event)">···</button>':'')+
-    '</div></div>';
+  const lp=latestPeriod(def);
+  if(lp&&!catLimits[k]&&lp.end<t)notes.push('<span style="color:var(--am)">période terminée</span>');
+  const sub=notes.join(' · '); // 2e ligne seulement si utile (la valeur à droite dit déjà « par mois » / la période)
+  return '<div class="lrow" onclick="openCatLimitModal(\''+k+'\')">'+
+    '<div class="lic" style="background:'+(c.color||'#888780')+'1f">'+c.icon+'</div>'+
+    '<div class="lmid"><div class="lt">'+escH(c.label)+'</div>'+(sub?'<div class="ls">'+sub+'</div>':'')+'</div>'+
+    '<div class="lv"'+(b.v==='—'?' style="color:var(--mu)"':'')+'>'+b.v+'<small>'+b.u+'</small></div>'+
+    '<button class="txmenu" onclick="openCatManageAS(\''+k+'\',event)">···</button></div>';
 }
 function archivedRow(k){
   const c=limMeta(k),hasExp=expenses.some(e=>e.cat===k);
-  return '<div class="incrow" style="opacity:.6"><div style="display:flex;align-items:center;gap:8px">'+
-    '<span style="font-size:18px">'+c.icon+'</span>'+
-    '<div><div style="font-size:13px">'+c.label+'</div>'+
-    '<div style="font-size:11px;color:var(--mu)">Archivée'+(hasExp?' · historique conservé':'')+'</div></div></div>'+
+  return '<div class="lrow" style="opacity:.6;cursor:default"><div class="lic" style="background:var(--s3)">'+c.icon+'</div>'+
+    '<div class="lmid"><div class="lt">'+escH(c.label)+'</div><div class="ls">Archivée'+(hasExp?' · historique conservé':'')+'</div></div>'+
     '<div style="display:flex;align-items:center;gap:6px">'+
     '<button class="smb" onclick="unarchiveCat(\''+k+'\')">Réactiver</button>'+
     (hasExp?'':'<button class="smb" style="background:var(--redim);border-color:var(--re);color:var(--re)" onclick="deleteCat(\''+k+'\')">Supprimer</button>')+
     '</div></div>';
 }
+// ── Ordre d'affichage (Phase 1) : une seule source = le tableau `categories`.
+// Autre et Revenu restent toujours en fin de liste (non déplaçables).
+let catSortMode=false;
+function toggleCatSort(){catSortMode=!catSortMode;renderCatManager();}
+function moveCat(k,dir){
+  const movable=categories.filter(c=>!CORE_KEYS.includes(c.key)&&!c.archived);
+  const i=movable.findIndex(c=>c.key===k),j=i+dir;
+  if(i<0||j<0||j>=movable.length)return;
+  const a=categories.indexOf(movable[i]),b=categories.indexOf(movable[j]);
+  [categories[a],categories[b]]=[categories[b],categories[a]];
+  save();buildCAT();renderCatManager();renderDash();buildCatGrid();buildFilter();
+}
+function catSortRow(k,i,n){
+  const c=CAT[k];
+  const arrow=(d,dis)=>'<button class="txmenu" style="'+(dis?'opacity:.25;pointer-events:none':'')+'" onclick="moveCat(\''+k+'\','+d+')">'+(d<0?'↑':'↓')+'</button>';
+  return '<div class="incrow"><div style="display:flex;align-items:center;gap:8px"><span style="font-size:11px;color:var(--mu);width:14px;text-align:right">'+(i+1)+'</span><span style="font-size:18px">'+c.icon+'</span><span style="font-size:13px">'+escH(c.label)+'</span></div>'+
+    '<div style="display:flex;gap:6px">'+arrow(-1,i===0)+arrow(1,i===n-1)+'</div></div>';
+}
 function renderCatManager(){
   // Actives (non archivées) : catégories de dépense dans l'ordre, puis Autre, puis Objectif d'épargne.
   const spend=categories.filter(c=>!CORE_KEYS.includes(c.key)&&!c.archived).map(c=>c.key);
-  const rows=[...spend,'autre',EPARGNE_KEY].map(catManageRow);
+  const sortBtn=document.getElementById('cat-sort-btn');
+  if(sortBtn)sortBtn.textContent=catSortMode?'✓ Terminé':'↕ Ordre';
+  if(catSortMode){
+    document.getElementById('lim-list').innerHTML=spend.map((k,i)=>catSortRow(k,i,spend.length)).join('')+
+      '<div style="font-size:11px;color:var(--mu);padding:8px 0 0">📌 Autre reste toujours en dernier. Cet ordre s\'applique à l\'accueil, au suivi des budgets et au menu Ajouter.</div>';
+    return;
+  }
+  const rows=[...spend,'autre'].map(catManageRow);
+  rows.push('<div class="lsub">Objectif</div>'+catManageRow(EPARGNE_KEY));
   const archived=categories.filter(c=>c.archived);
   let arch='';
   if(archived.length){
@@ -1206,7 +1360,7 @@ function saveNewCat(){
   const month=document.getElementById('ncat-month').value;
   if(!name){showToast('Donne un nom');return;}
   if(!icon)icon='🏷️';
-  const cat={key:'c'+Date.now(),label:name,icon,color:pickNewColor(),custom:true,startMonth:month||null,endMonth:null,archived:false};
+  const cat=normalizeCat({key:'c'+Date.now(),label:name,icon,color:pickNewColor(),custom:true,startMonth:month||null,archived:false,activity:[]});
   const idxAutre=categories.findIndex(c=>c.key==='autre'); // insérer avant Autre → Autre/Revenu restent en fin
   if(idxAutre>=0)categories.splice(idxAutre,0,cat);else categories.push(cat);
   save();buildCAT();renderSet();renderDash();buildCatGrid();buildFilter();
@@ -1237,15 +1391,24 @@ function saveEditCat(k){
   document.getElementById('ecatpop').remove();showToast('Catégorie modifiée ✓');
 }
 function openCatManageAS(k,ev){
-  ev.stopPropagation();const def=catByKey(k);if(!def)return;
-  const hasExp=expenses.some(e=>e.cat===k);
+  ev.stopPropagation();
+  const def=catByKey(k),c=limMeta(k),isObj=!!c.objective,canManage=def&&!CORE_KEYS.includes(k)&&!isObj;
+  const hasExp=expenses.some(e=>e.cat===k),hasBudget=!!catLimits[k]||!!latestPeriod(def);
+  const close="document.getElementById('xcas').remove()";
+  const it=(ic,l,fn,red)=>'<div class="as-item"'+(red?' style="color:var(--re)"':'')+' onclick="'+close+';'+fn+'"><span style="font-size:18px">'+ic+'</span><span>'+l+'</span></div>';
+  let head=c.icon+' '+escH(c.label);
+  if(canManage){const info=catSinceLabel(def);head+='<br><span style="font-size:11px">'+(info.activeNow?'Active':'Inactive')+' depuis '+moLabel(info.since)+'</span>';}
   document.body.insertAdjacentHTML('beforeend',
-    '<div class="as" id="xcas" onclick="if(event.target.classList.contains(\'as-bg\'))document.getElementById(\'xcas\').remove()"><div class="as-bg"></div><div class="as-box">'+
-    '<div style="text-align:center;padding:6px 8px 12px;font-size:13px;color:var(--mu);border-bottom:0.5px solid var(--b);margin-bottom:4px">'+def.icon+' '+def.label+'</div>'+
-    '<div class="as-item" onclick="document.getElementById(\'xcas\').remove();openEditCatModal(\''+k+'\')"><span style="font-size:18px">✏️</span><span>Modifier</span></div>'+
-    '<div class="as-item" onclick="document.getElementById(\'xcas\').remove();archiveCat(\''+k+'\')"><span style="font-size:18px">📦</span><span>Archiver</span></div>'+
-    (def.custom&&!hasExp?'<div class="as-item" style="color:var(--re)" onclick="document.getElementById(\'xcas\').remove();deleteCat(\''+k+'\')"><span style="font-size:18px">🗑️</span><span>Supprimer</span></div>':'')+
-    '<button class="as-cancel" onclick="document.getElementById(\'xcas\').remove()">Annuler</button></div></div>');
+    '<div class="as" id="xcas" onclick="if(event.target.classList.contains(\'as-bg\'))'+close+'"><div class="as-bg"></div><div class="as-box">'+
+    '<div style="text-align:center;padding:6px 8px 12px;font-size:13px;color:var(--mu);border-bottom:0.5px solid var(--b);margin-bottom:4px">'+head+'</div>'+
+    it('💶',hasBudget?(isObj?'Modifier l\'objectif':'Modifier le budget'):(isObj?'Définir un objectif':'Définir un budget'),"openCatLimitModal('"+k+"')")+
+    (def&&latestPeriod(def)?it('🔁','Renouveler la période',"renewPeriod('"+k+"')"):'')+
+    (canManage?it(catActiveForMonth(def,new Date().getFullYear(),new Date().getMonth())?'⏸️':'▶️',catActiveForMonth(def,new Date().getFullYear(),new Date().getMonth())?'Désactiver':'Réactiver',"toggleCatMonth('"+k+"')"):'')+
+    (canManage?it('✏️','Renommer / emoji',"openEditCatModal('"+k+"')"):'')+
+    (canManage?it('📦','Archiver',"archiveCat('"+k+"')"):'')+
+    (hasBudget?it('✕',isObj?'Retirer l\'objectif':'Retirer le budget',"removeCatLimit('"+k+"')",true):'')+
+    (def&&def.custom&&!hasExp?it('🗑️','Supprimer la catégorie',"deleteCat('"+k+"')",true):'')+
+    '<button class="as-cancel" onclick="'+close+'">Annuler</button></div></div>');
 }
 function archiveCat(k){
   const c=catByKey(k);if(!c||CORE_KEYS.includes(k))return;
@@ -1264,25 +1427,32 @@ function deleteCat(k){
   categories=categories.filter(x=>x.key!==k);delete catLimits[k];
   save();buildCAT();renderSet();renderDash();buildCatGrid();buildFilter();showToast('Catégorie supprimée');
 }
+const LIM_HINT={monthly:'Montant maximum pour cette catégorie chaque mois',period:'Enveloppe pour toute la période choisie (suivi à part, n\'entre pas dans le budget du mois)'};
 function pickLimType(t){
   window._limType=t;
   document.querySelectorAll('#limtypes button').forEach(b=>b.classList.toggle('on',b.dataset.t===t));
-  const hint=document.getElementById('limhint');
-  if(hint)hint.textContent=t==='annual'?'Enveloppe pour toute l\'année (suivi à part, ne compte pas comme dépense mensuelle prévue)':'Montant maximum pour cette catégorie chaque mois';
+  const hint=document.getElementById('limhint');if(hint)hint.textContent=LIM_HINT[t];
+  const dates=document.getElementById('limdates');if(dates)dates.style.display=t==='period'?'grid':'none';
 }
 function openCatLimitModal(catKey){
   const c=limMeta(catKey),def=catByKey(catKey),isObj=!!c.objective;
-  const allowAnnual=!!def&&!isObj&&catKey!=='autre';
-  const isAnnual=!!(def&&def.budgetType==='annual'&&def.budgetAmount>0);
-  const curType=isObj?'monthly':(isAnnual?'annual':(catLimits[catKey]?'monthly':'monthly'));
-  window._limType=allowAnnual?curType:'monthly';
-  const curAmount=isAnnual?(def.budgetAmount||''):(catLimits[catKey]||'');
-  const seg=allowAnnual?(
+  const allowPeriod=!!def&&!isObj&&catKey!=='autre';
+  const lp=allowPeriod?latestPeriod(def):null;
+  window._limType=allowPeriod&&lp&&!catLimits[catKey]?'period':'monthly';
+  const curAmount=window._limType==='period'?lp.amount:(catLimits[catKey]||'');
+  // Dates par défaut : la période existante, sinon du 1er du mois en cours à 1 an moins 1 jour.
+  const _n=new Date(),dStart=lp?lp.start:ymd(new Date(_n.getFullYear(),_n.getMonth(),1));
+  const dEnd=lp?lp.end:ymd(new Date(_n.getFullYear()+1,_n.getMonth(),0));
+  const seg=allowPeriod?(
     '<div class="rtoggle" id="limtypes" style="width:100%;margin-bottom:12px">'+
     '<button type="button" class="'+(window._limType==='monthly'?'on':'')+'" data-t="monthly" style="flex:1" onclick="pickLimType(\'monthly\')">Mensuel</button>'+
-    '<button type="button" class="'+(window._limType==='annual'?'on':'')+'" data-t="annual" style="flex:1" onclick="pickLimType(\'annual\')">Annuel</button>'+
+    '<button type="button" class="'+(window._limType==='period'?'on':'')+'" data-t="period" style="flex:1" onclick="pickLimType(\'period\')">Sur une période</button>'+
+    '</div>'+
+    '<div id="limdates" style="display:'+(window._limType==='period'?'grid':'none')+';grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">'+
+    '<label style="font-size:11px;color:var(--mu);min-width:0">Du<input class="fi" type="date" id="lim-start" value="'+dStart+'" style="margin-top:4px;padding:9px 6px;font-size:13px;min-width:0"></label>'+
+    '<label style="font-size:11px;color:var(--mu);min-width:0">Au<input class="fi" type="date" id="lim-end" value="'+dEnd+'" style="margin-top:4px;padding:9px 6px;font-size:13px;min-width:0"></label>'+
     '</div>'):'';
-  const hint=isObj?'Montant que tu veux épargner chaque mois':(window._limType==='annual'?'Enveloppe pour toute l\'année (suivi à part, ne compte pas comme dépense mensuelle prévue)':'Montant maximum pour cette catégorie chaque mois');
+  const hint=isObj?'Montant que tu veux épargner chaque mois':LIM_HINT[window._limType];
   document.body.insertAdjacentHTML('beforeend',
     '<div class="saloverlay" id="limover" onclick="if(event.target.id===\'limover\')this.remove()"><div class="salmodal">'+
     '<div class="salemoji">'+c.icon+'</div>'+
@@ -1300,25 +1470,70 @@ function saveCatLimit(catKey){
   const v=parseFloat((document.getElementById('liminput').value||'').replace(',','.'));
   if(!v||v<=0){showToast('Montant invalide');return;}
   const def=catByKey(catKey),isObj=!!limMeta(catKey).objective;
-  const allowAnnual=!!def&&!isObj&&catKey!=='autre';
-  const type=allowAnnual?(window._limType||'monthly'):'monthly';
-  if(type==='annual'){
-    def.budgetType='annual';def.budgetAmount=v;
-    delete catLimits[catKey]; // budget annuel → JAMAIS de barre/limite mensuelle
+  const allowPeriod=!!def&&!isObj&&catKey!=='autre';
+  const type=allowPeriod?(window._limType||'monthly'):'monthly';
+  if(type==='period'){
+    const start=document.getElementById('lim-start').value,end=document.getElementById('lim-end').value;
+    if(!start||!end||end<start){showToast('Dates invalides');return;}
+    const lp=latestPeriod(def);
+    // Modifier = corriger la période la plus récente ; une nouvelle période se crée via « Renouveler ».
+    if(lp){lp.start=start;lp.end=end;lp.amount=v;}
+    else def.periods.push({id:'p'+Date.now().toString(36),start,end,amount:v});
+    delete catLimits[catKey]; // budget sur période → JAMAIS de barre/limite mensuelle
   } else {
     catLimits[catKey]=v;
-    if(def){def.budgetType='none';def.budgetAmount=0;}
+    // Passage en mensuel : on garde les périodes TERMINÉES (historique), on retire les autres.
+    if(def){const t=ymd(new Date());def.periods=def.periods.filter(p=>p.end<t);}
   }
   save();document.getElementById('limover').remove();renderSet();renderDash();showToast('Budget enregistré ✓');
 }
 function removeCatLimit(catKey){
+  const def=catByKey(catKey);
+  if(def&&def.periods.length&&!catLimits[catKey]&&!confirm('Supprimer le budget sur période de « '+def.label+' » ?'))return;
   delete catLimits[catKey];
-  const def=catByKey(catKey);if(def){def.budgetType='none';def.budgetAmount=0;}
+  if(def)def.periods=[];
   save();renderSet();renderDash();showToast('Budget supprimé');
 }
+// Phase 17 — « Renouveler » : même période décalée d'un an, même montant (modifiable ensuite).
+function renewPeriod(k){
+  const def=catByKey(k),lp=latestPeriod(def);if(!lp)return;
+  const np={id:'p'+Date.now().toString(36),start:shiftYear(lp.start,1),end:shiftYear(lp.end,1),amount:lp.amount};
+  def.periods.push(np);delete catLimits[k];
+  save();renderSet();renderDash();showToast('Renouvelé : '+fmtD(np.start)+' → '+fmtD(np.end));
+}
+// ── Revenus mensuels (Phase 10) : 3 mois visibles, flèches ‹ › pour remonter/avancer,
+// détail du mois choisi avec ⋯ (Modifier / Supprimer). Remplace la longue liste verticale.
+let incNavEnd=0,incSel=null; // incNavEnd = décalage (en mois) du DERNIER mois affiché par rapport à aujourd'hui
+function incNav(d){incNavEnd+=d;renderIncNav();}
+function incPick(k){incSel=k;renderIncNav();}
+function renderIncNav(){
+  const el=document.getElementById('inc-list');if(!el)return;
+  const n=new Date(),keys=[];
+  for(let i=2;i>=0;i--){const d=new Date(n.getFullYear(),n.getMonth()+incNavEnd-i,1);keys.push(mk(d.getFullYear(),d.getMonth()));}
+  if(!incSel||!keys.includes(incSel))incSel=keys[2]; // par défaut : le mois le plus récent affiché
+  const chip=k=>{const v=parseFloat(monthInc[k])||0,on=k===incSel,[y,m]=k.split('-');
+    return '<button onclick="incPick(\''+k+'\')" style="flex:1;min-width:0;background:'+(on?'var(--pudim)':'var(--s3)')+';border:0.5px solid '+(on?'var(--pu)':'var(--b2)')+';border-radius:9px;padding:7px 2px;cursor:pointer;font-family:inherit">'+
+      '<div style="font-size:10px;color:'+(on?'var(--pu)':'var(--mu)')+';text-transform:uppercase;letter-spacing:.04em">'+MSF[parseInt(m,10)-1]+(y!==String(n.getFullYear())?' '+y.slice(2):'')+'</div>'+
+      '<div style="font-size:12px;font-weight:600;color:'+(v?'var(--tx)':'var(--mu)')+';margin-top:2px">'+(v?fr(v):'—')+'</div></button>';};
+  const [y,m]=incSel.split('-'),v=parseFloat(monthInc[incSel])||0;
+  const detail=v
+    ?'<div class="incrow" style="border-bottom:none;padding-bottom:2px"><div><div style="font-size:13px">Salaire · '+MONTHS[parseInt(m,10)-1]+' '+y+'</div></div><div style="display:flex;align-items:center;gap:8px"><span style="font-size:13px;font-weight:600;color:var(--te)">'+fa(v)+'</span><button class="txmenu" onclick="openIncAS(\''+incSel+'\',event)">···</button></div></div>'
+    :'<div class="incrow" style="border-bottom:none;padding-bottom:2px"><div style="font-size:13px;color:var(--mu)">Aucun salaire en '+MONTHS[parseInt(m,10)-1]+' '+y+'</div><button class="smb" onclick="editInc(\''+incSel+'\')">+ Définir</button></div>';
+  el.innerHTML='<div style="display:flex;align-items:center;gap:6px"><button class="cnb" onclick="incNav(-3)">‹</button>'+keys.map(chip).join('')+'<button class="cnb" onclick="incNav(3)">›</button></div>'+detail;
+}
+function openIncAS(k,ev){
+  ev.stopPropagation();const close="document.getElementById('xincas').remove()";const[y,m]=k.split('-');
+  document.body.insertAdjacentHTML('beforeend','<div class="as" id="xincas" onclick="if(event.target.classList.contains(\'as-bg\'))'+close+'"><div class="as-bg"></div><div class="as-box">'+
+    '<div style="text-align:center;padding:6px 8px 12px;font-size:13px;color:var(--mu);border-bottom:0.5px solid var(--b);margin-bottom:4px">Salaire · '+MONTHS[parseInt(m,10)-1]+' '+y+'</div>'+
+    '<div class="as-item" onclick="'+close+';editInc(\''+k+'\')"><span style="font-size:18px">✏️</span><span>Modifier</span></div>'+
+    '<div class="as-item" style="color:var(--re)" onclick="'+close+';delInc(\''+k+'\')"><span style="font-size:18px">🗑️</span><span>Supprimer</span></div>'+
+    '<button class="as-cancel" onclick="'+close+'">Annuler</button></div></div>');
+}
+function delInc(k){if(!confirm('Supprimer le salaire de ce mois ?'))return;delete monthInc[k];save();renderSet();renderDash();showToast('Salaire supprimé');}
 function editInc(key,cur){
+  if(cur===undefined)cur=monthInc[key]||'';
   const[y,m]=key.split('-'),lbl=MONTHS[parseInt(m)-1]+' '+y;
-  document.body.insertAdjacentHTML('beforeend','<div class="saloverlay" id="salover" onclick="if(event.target.id===\'salover\')this.remove()"><div class="salmodal"><div class="salemoji">💰</div><div class="saltitle">Modifier le revenu</div><div class="salsub">'+lbl+'</div><input class="salinput" type="number" id="salin" inputmode="decimal" value="'+cur+'"><div class="salhint">Modifie le salaire pour ce mois</div><button class="btnp" onclick="saveInc(\''+key+'\')">Confirmer</button><button onclick="document.getElementById(\'salover\').remove()" style="width:100%;background:none;border:none;color:var(--mu);padding:12px;cursor:pointer;font-family:inherit;font-size:14px;margin-top:4px">Annuler</button></div></div>');
+  document.body.insertAdjacentHTML('beforeend','<div class="saloverlay" id="salover" onclick="if(event.target.id===\'salover\')this.remove()"><div class="salmodal"><div class="salemoji">💰</div><div class="saltitle">'+(cur?'Modifier le salaire':'Ajouter le salaire')+'</div><div class="salsub">'+lbl+'</div><input class="salinput" type="number" id="salin" inputmode="decimal" value="'+cur+'"><div class="salhint">Modifie le salaire pour ce mois</div><button class="btnp" onclick="saveInc(\''+key+'\')">Confirmer</button><button onclick="document.getElementById(\'salover\').remove()" style="width:100%;background:none;border:none;color:var(--mu);padding:12px;cursor:pointer;font-family:inherit;font-size:14px;margin-top:4px">Annuler</button></div></div>');
   setTimeout(()=>document.getElementById('salin').focus(),100);
 }
 function saveInc(key){const v=parseFloat(document.getElementById('salin').value);if(!v||v<=0){showToast('Montant invalide');return;}monthInc[key]=v;save();document.getElementById('salover').remove();renderSet();renderDash();showToast('Revenu modifié ✓');}
@@ -1345,40 +1560,237 @@ function editBonus(key,idx){
 }
 function saveBonusEdit(key,idx){const desc=document.getElementById('bedit-desc').value.trim(),amount=parseFloat(document.getElementById('bedit-amt').value);if(!desc||!amount){showToast('Champs invalides');return;}monthBon[key][idx]={desc,amount};save();document.getElementById('bonover').remove();renderSet();renderDash();showToast('Rentrée modifiée ✓');}
 function deleteBonusEdit(key,idx){if(!confirm('Supprimer cette rentrée ?'))return;monthBon[key].splice(idx,1);if(!monthBon[key].length)delete monthBon[key];save();document.getElementById('bonover').remove();renderSet();renderDash();showToast('Rentrée supprimée');}
-function openRecurModal(){
-  selRecurCat=null;
-  document.body.insertAdjacentHTML('beforeend','<div class="overlay" id="recpop" onclick="if(event.target.id===\'recpop\')this.remove()"><div class="modal"><div class="modal-title">Nouvelle récurrence</div><div class="fsec" style="margin-bottom:10px"><label class="fl">Description</label><input class="fi" type="text" id="rec-desc" placeholder="Ex: Netflix"></div><div class="fsec" style="margin-bottom:10px"><label class="fl">Montant (€)</label><input class="fi" type="number" id="rec-amt" placeholder="0.00" inputmode="decimal"></div><div class="fsec" style="margin-bottom:10px"><label class="fl">Catégorie</label><div class="catg">'+Object.entries(CAT).map(([k,c])=>'<button class="catb" onclick="pickRCat(this,\''+k+'\')"><span class="catic">'+c.icon+'</span>'+c.label+'</button>').join('')+'</div></div><button class="btnp" onclick="saveRecur()">Ajouter</button><button onclick="document.getElementById(\'recpop\').remove()" style="width:100%;background:none;border:none;color:var(--mu);padding:12px;cursor:pointer;font-family:inherit;font-size:14px;margin-top:4px">Annuler</button></div></div>');
+// ─── Données récurrentes (Phases 11-14) ─────────
+// UN SEUL système pour revenus ET dépenses. Une donnée récurrente :
+//  {id, type:'expense'|'income', versions:[{from:'AAAA-MM-JJ',amount,cat,desc}],
+//   start, end|null, freq:{unit:'month'|'week',every:N}, activity:[{from,on}],
+//   genFrom:'AAAA-MM-JJ' (jamais de création avant cette date → les mois passés ne bougent pas),
+//   done:[dates déjà générées] (une occurrence supprimée à la main n'est jamais recréée)}
+// Occurrences : dépense → ligne dans `expenses` ; revenu → ligne dans `monthBon` (comme avant).
+const FREQ_OPTS=[['m1','Mensuelle'],['m3','Trimestrielle'],['m12','Annuelle'],['mN','Tous les N mois'],['wN','Toutes les N semaines']];
+function freqLabel(f){
+  if(f.unit==='week')return f.every===1?'chaque semaine':'toutes les '+f.every+' sem.';
+  return f.every===1?'mensuel':f.every===3?'trimestriel':f.every===12?'annuel':'tous les '+f.every+' mois';
 }
-function pickRCat(btn,cat){document.querySelectorAll('#recpop .catb').forEach(b=>b.classList.remove('sel'));btn.classList.add('sel');selRecurCat=cat;}
-function saveRecur(){const desc=document.getElementById('rec-desc').value.trim(),amt=parseFloat(document.getElementById('rec-amt').value);if(!desc||!amt||!selRecurCat){showToast('Remplis tous les champs');return;}recurItems.push({id:'r'+Date.now(),desc,amount:amt,cat:selRecurCat,active:true});save();document.getElementById('recpop').remove();renderSet();showToast('Récurrence ajoutée ✓');}
-function openRecurAS(id,ev){ev.stopPropagation();document.body.insertAdjacentHTML('beforeend','<div class="as" id="xras" onclick="if(event.target.classList.contains(\'as-bg\'))document.getElementById(\'xras\').remove()"><div class="as-bg"></div><div class="as-box"><div class="as-item" style="color:var(--re)" onclick="document.getElementById(\'xras\').remove();delRecur(\''+id+'\')"><span style="font-size:18px">🗑️</span><span>Supprimer</span></div><button class="as-cancel" onclick="document.getElementById(\'xras\').remove()">Annuler</button></div></div>');}
-function delRecur(id){if(!confirm('Supprimer ?'))return;recurItems=recurItems.filter(r=>r.id!==id);save();renderSet();}
-function toggleRecur(id){const r=recurItems.find(x=>x.id===id);if(r){r.active=!r.active;save();renderSet();}}
-
-function openRecurIncModal(){
-  document.body.insertAdjacentHTML('beforeend','<div class="overlay" id="recincpop" onclick="if(event.target.id===\'recincpop\')this.remove()"><div class="modal"><div class="modal-title">Nouveau revenu récurrent</div><div class="fsec" style="margin-bottom:10px"><label class="fl">Description</label><input class="fi" type="text" id="recinc-desc" placeholder="Ex: Allocation, Virement..."></div><div class="fsec" style="margin-bottom:10px"><label class="fl">Montant (€)</label><input class="fi" type="number" id="recinc-amt" placeholder="0.00" inputmode="decimal"></div><button class="btnp" onclick="saveRecurInc()">Ajouter</button><button onclick="document.getElementById(\'recincpop\').remove()" style="width:100%;background:none;border:none;color:var(--mu);padding:12px;cursor:pointer;font-family:inherit;font-size:14px;margin-top:4px">Annuler</button></div></div>');
+function freqToSel(f){return f.unit==='week'?'wN':(f.every===1?'m1':f.every===3?'m3':f.every===12?'m12':'mN');}
+function monthFirst(off){const n=new Date();return ymd(new Date(n.getFullYear(),n.getMonth()+(off||0),1));}
+function normalizeRecur(r){
+  return {id:r.id,type:r.type==='income'?'income':'expense',
+    versions:(r.versions||[]).map(v=>({from:v.from,amount:+v.amount||0,cat:v.cat||null,desc:v.desc||''})).sort((a,b)=>a.from.localeCompare(b.from)),
+    start:r.start,end:r.end||null,freq:{unit:r.freq&&r.freq.unit==='week'?'week':'month',every:Math.max(1,parseInt(r.freq&&r.freq.every,10)||1)},
+    activity:Array.isArray(r.activity)?r.activity.map(a=>({from:a.from,on:!!a.on})):[],
+    genFrom:r.genFrom||r.start,done:Array.isArray(r.done)?r.done.slice():[]};
 }
-function saveRecurInc(){
-  const desc=document.getElementById('recinc-desc').value.trim(),amt=parseFloat(document.getElementById('recinc-amt').value);
-  if(!desc||!amt){showToast('Remplis tous les champs');return;}
-  recurIncome.push({id:'ri'+Date.now(),desc,amount:amt,active:true});
-  save();document.getElementById('recincpop').remove();renderSet();showToast('Revenu récurrent ajouté ✓');
+// Anciennes listes (dépenses récurrentes + revenus récurrents, mensuelles, générées le 1er)
+// → nouveau format. Rien n'est régénéré : les occurrences existantes sont marquées « faites ».
+function migrateRecurring(oldExp,oldInc){
+  const cur=monthFirst(0),nxt=monthFirst(1),out=[];
+  const mkOne=(r,type,occ)=>{
+    occ=occ.slice().sort();
+    out.push(normalizeRecur({id:r.id,type,versions:[{from:'0000-01-01',amount:r.amount,cat:type==='income'?null:(r.cat||'autre'),desc:r.desc}],
+      start:occ[0]||nxt,end:null,freq:{unit:'month',every:1},
+      activity:r.active===false?[{from:cur,on:false}]:[],genFrom:cur,done:[...new Set([...occ,cur])]}));
+  };
+  (oldExp||[]).forEach(r=>mkOne(r,'expense',expenses.filter(e=>e.recurId===r.id).map(e=>e.date)));
+  (oldInc||[]).forEach(r=>mkOne(r,'income',Object.entries(monthBon).filter(([k,b])=>b.some(x=>x.recurId===r.id)).map(([k])=>k+'-01')));
+  return out;
 }
-function toggleRecurInc(id){const r=recurIncome.find(x=>x.id===id);if(r){r.active=!r.active;save();renderSet();}}
-function delRecurInc(id){if(!confirm('Supprimer ?'))return;recurIncome=recurIncome.filter(r=>r.id!==id);save();renderSet();}
-function openRecurIncAS(id,ev){
-  ev.stopPropagation();
-  document.body.insertAdjacentHTML('beforeend','<div class="as" id="xrias" onclick="if(event.target.classList.contains(\'as-bg\'))document.getElementById(\'xrias\').remove()"><div class="as-bg"></div><div class="as-box"><div class="as-item" style="color:var(--re)" onclick="document.getElementById(\'xrias\').remove();delRecurInc(\''+id+'\')"><span style="font-size:18px">🗑️</span><span>Supprimer</span></div><button class="as-cancel" onclick="document.getElementById(\'xrias\').remove()">Annuler</button></div></div>');
+function recurVersionAt(r,d){let v=r.versions[0];r.versions.forEach(x=>{if(x.from<=d)v=x;});return v;}
+function recurOnAt(r,d){let on=true;r.activity.forEach(e=>{if(e.from<=d)on=e.on;});return on;}
+function recurDates(r,from,to){
+  const out=[],s=parseYmd(r.start);
+  for(let k=0;k<6000;k++){
+    let d;
+    if(r.freq.unit==='week')d=new Date(s.getFullYear(),s.getMonth(),s.getDate()+k*7*r.freq.every);
+    else{const mo=s.getMonth()+k*r.freq.every;d=new Date(s.getFullYear(),mo,Math.min(s.getDate(),new Date(s.getFullYear(),mo+1,0).getDate()));}
+    const x=ymd(d);if(x>to)break;if(x>=from)out.push(x);
+  }
+  return out;
+}
+// Crée les occurrences manquantes jusqu'à la fin du mois en cours (rattrape les mois sans ouverture).
+function syncRecurring(){
+  const n=new Date(),horizon=ymd(new Date(n.getFullYear(),n.getMonth()+1,0));let changed=false;
+  recurring.forEach(r=>{
+    const lo=r.genFrom>r.start?r.genFrom:r.start,hi=r.end&&r.end<horizon?r.end:horizon;
+    if(!r.start||lo>hi)return;
+    recurDates(r,lo,hi).forEach(d=>{
+      if(r.done.includes(d)||!recurOnAt(r,d))return;
+      const v=recurVersionAt(r,d);
+      if(r.type==='income'){const k=d.slice(0,7);(monthBon[k]=monthBon[k]||[]).push({desc:v.desc,amount:v.amount,recurId:r.id,date:d});}
+      else expenses.unshift({id:'rc'+r.id+'_'+d,date:d,desc:v.desc,amount:v.amount,cat:v.cat||'autre',recurId:r.id});
+      r.done.push(d);changed=true;
+    });
+  });
+  return changed;
+}
+function recurOccurrences(r){
+  if(r.type==='income'){const o=[];Object.entries(monthBon).forEach(([k,a])=>a.forEach(b=>{if(b.recurId===r.id)o.push({k,b,date:b.date||k+'-01'});}));return o;}
+  return expenses.filter(e=>e.recurId===r.id).map(e=>({e,date:e.date}));
+}
+// Phase 12 : nouvelle valeur à partir d'une date ; les occurrences DÉJÀ créées à partir de
+// cette date sont corrigées aussi (choix validé : « ce mois-ci » corrige la ligne du mois).
+function applyRecurVersion(r,from,v){
+  r.versions=r.versions.filter(x=>x.from<from);r.versions.push(Object.assign({from},v));
+  recurOccurrences(r).forEach(o=>{
+    if(o.date<from)return;
+    if(o.e){o.e.desc=v.desc;o.e.amount=v.amount;o.e.cat=v.cat||'autre';}else{o.b.desc=v.desc;o.b.amount=v.amount;}
+  });
+}
+function dropRecurFrom(r,from){
+  expenses=expenses.filter(e=>!(e.recurId===r.id&&e.date>=from));
+  Object.keys(monthBon).forEach(k=>{monthBon[k]=monthBon[k].filter(b=>!(b.recurId===r.id&&(b.date||k+'-01')>=from));if(!monthBon[k].length)delete monthBon[k];});
+  r.done=r.done.filter(d=>d<from);
+}
+function setRecurActivity(r,on,from){
+  r.activity=normalizeActivity([...r.activity.filter(e=>e.from<from),{from,on}]);
+  if(!on)dropRecurFrom(r,from);
+}
+// Terminée = date de fin passée, ou inactive sans réactivation programmée → rangée dans « Terminées ».
+function recurEnded(r){
+  const t=ymd(new Date());
+  if(r.end&&r.end<t)return true;
+  return !recurOnAt(r,t)&&!r.activity.some(e=>e.on&&e.from>t);
+}
+function recurHasOccurrences(r){return recurOccurrences(r).length>0;}
+let recurShowEnded=false;
+function recurRow(r,ended){
+  const t=ymd(new Date()),v=recurVersionAt(r,t),isInc=r.type==='income',cat=CAT[v.cat]||CAT.autre;
+  const notes=[];
+  if(r.start>t)notes.push('dès le '+fmtD(r.start));
+  const nv=r.versions.find(x=>x.from>t);if(nv)notes.push(fr(nv.amount)+' dès '+moLabel(nv.from.slice(0,7)));
+  const ev=r.activity.find(e=>e.from>t);if(ev)notes.push((ev.on?'reprend':'s\'arrête')+' en '+moLabel(ev.from.slice(0,7)));
+  if(r.end&&!ended)notes.push('jusqu\'au '+fmtD(r.end));
+  if(ended)notes.push(r.end&&r.end<t?'terminée le '+fmtD(r.end):'désactivée');
+  const sub=(isInc?'Revenu':cat.label)+' · '+freqLabel(r.freq)+(notes.length?' · '+notes.join(' · '):'');
+  return '<div class="lrow"'+(ended?' style="opacity:.6"':'')+' onclick="openRecurForm(\''+r.id+'\')">'+
+    '<div class="lic" style="background:'+(isInc?'rgba(29,158,117,.12)':cat.color+'1f')+'">'+(isInc?'💸':cat.icon)+'</div>'+
+    '<div class="lmid"><div class="lt">'+escH(v.desc)+'</div><div class="ls">'+escH(sub)+'</div></div>'+
+    '<div class="lv" style="color:'+(isInc?'var(--te)':'var(--tx)')+'">'+(isInc?'+':'')+fr(v.amount)+'</div>'+
+    '<button class="txmenu" onclick="openRecurAS(\''+r.id+'\',event)">···</button></div>';
+}
+function renderRecurring(){
+  const el=document.getElementById('recur-list');if(!el)return;
+  const live=recurring.filter(r=>!recurEnded(r)),ended=recurring.filter(recurEnded);
+  // Revenus d'abord, puis dépenses dans l'ordre des catégories.
+  const ord=r=>r.type==='income'?-1:categories.findIndex(c=>c.key===recurVersionAt(r,ymd(new Date())).cat);
+  live.sort((a,b)=>ord(a)-ord(b));
+  const inc=live.filter(r=>r.type==='income'),exp=live.filter(r=>r.type!=='income');
+  let h=!live.length?'<div style="color:var(--mu);font-size:13px;padding:8px 0">Aucune donnée récurrente</div>':
+    (inc.length?'<div class="lsub" style="margin-top:0">Revenus</div>'+inc.map(r=>recurRow(r,false)).join(''):'')+
+    (exp.length?'<div class="lsub"'+(inc.length?'':' style="margin-top:0"')+'>Dépenses</div>'+exp.map(r=>recurRow(r,false)).join(''):'');
+  if(ended.length){
+    h+='<div onclick="recurShowEnded=!recurShowEnded;renderRecurring()" style="cursor:pointer;margin-top:10px;padding-top:8px;border-top:0.5px solid var(--b);font-size:10px;color:var(--mu);text-transform:uppercase;letter-spacing:.06em">'+(recurShowEnded?'▾':'▸')+' Terminées ('+ended.length+')</div>';
+    if(recurShowEnded)h+=ended.map(r=>recurRow(r,true)).join('');
+  }
+  el.innerHTML=h;
+}
+function afterRecurChange(msg){syncRecurring();save();renderSet();renderDash();if(msg)showToast(msg);}
+function toggleRecurring(id){
+  const r=recurring.find(x=>x.id===id);if(!r)return;
+  const on=!recurOnAt(r,ymd(new Date()));
+  openEffectPicker((on?'Réactiver':'Désactiver')+' « '+recurVersionAt(r,ymd(new Date())).desc+' »',from=>{
+    setRecurActivity(r,on,from+'-01');afterRecurChange((on?'Réactivée':'Désactivée')+' à partir de '+moLabel(from));
+  });
+}
+function openRecurAS(id,ev){
+  ev.stopPropagation();const r=recurring.find(x=>x.id===id);if(!r)return;
+  const ended=recurEnded(r),close="document.getElementById('xras').remove()";
+  const item=(ic,lbl,fn,red)=>'<div class="as-item"'+(red?' style="color:var(--re)"':'')+' onclick="'+close+';'+fn+'"><span style="font-size:18px">'+ic+'</span><span>'+lbl+'</span></div>';
+  document.body.insertAdjacentHTML('beforeend','<div class="as" id="xras" onclick="if(event.target.classList.contains(\'as-bg\'))'+close+'"><div class="as-bg"></div><div class="as-box">'+
+    '<div style="text-align:center;padding:6px 8px 12px;font-size:13px;color:var(--mu);border-bottom:0.5px solid var(--b);margin-bottom:4px">'+escH(recurVersionAt(r,ymd(new Date())).desc)+'</div>'+
+    item('✏️','Modifier',"openRecurForm('"+id+"')")+
+    (ended?item('▶️','Réactiver',"reactivateRecurring('"+id+"')"):item('⏸️','Désactiver',"toggleRecurring('"+id+"')"))+
+    // Phase 14 (choix validé) : on archive ; suppression réelle seulement si jamais rien généré.
+    (recurHasOccurrences(r)?'':item('🗑️','Supprimer',"delRecurring('"+id+"')",true))+
+    '<button class="as-cancel" onclick="'+close+'">Annuler</button></div></div>');
+}
+function reactivateRecurring(id){
+  const r=recurring.find(x=>x.id===id);if(!r)return;
+  openEffectPicker('Réactiver « '+recurVersionAt(r,ymd(new Date())).desc+' »',from=>{
+    const f=from+'-01';
+    if(r.end&&r.end<f)r.end=null; // une date de fin dépassée est levée
+    if(r.genFrom<f)r.genFrom=f;    // pas de rattrapage de la période d'arrêt
+    setRecurActivity(r,true,f);afterRecurChange('Réactivée à partir de '+moLabel(from));
+  });
+}
+function delRecurring(id){
+  const r=recurring.find(x=>x.id===id);if(!r)return;
+  if(recurHasOccurrences(r)){showToast('Déjà utilisée : désactive-la plutôt');return;}
+  if(!confirm('Supprimer définitivement cette donnée récurrente ?'))return;
+  recurring=recurring.filter(x=>x.id!==id);afterRecurChange('Supprimée');
+}
+// Formulaire commun création / modification (reprend les principes du menu Ajouter).
+function rfPickType(t){
+  window._rf.type=t;
+  document.querySelectorAll('#rf-type button').forEach(b=>b.classList.toggle('on',b.dataset.t===t));
+  document.getElementById('rf-catwrap').style.display=t==='income'?'none':'block';
+}
+function rfPickCat(btn,k){document.querySelectorAll('#rf-cats .catb').forEach(b=>b.classList.remove('sel'));btn.classList.add('sel');window._rf.cat=k;}
+function rfFreqChange(){const v=document.getElementById('rf-freq').value;document.getElementById('rf-nwrap').style.display=(v==='mN'||v==='wN')?'flex':'none';document.getElementById('rf-nunit').textContent=v==='wN'?'semaines':'mois';}
+function openRecurForm(id){
+  const r=id?recurring.find(x=>x.id===id):null,t=ymd(new Date());
+  const v=r?recurVersionAt(r,t):{amount:'',cat:null,desc:''};
+  window._rf={id:id||null,type:r?r.type:'expense',cat:v.cat};
+  const fsel=r?freqToSel(r.freq):'m1',nVal=r&&(fsel==='mN'||fsel==='wN')?r.freq.every:2;
+  const cats=categories.filter(c=>c.key!=='revenu'&&(catActiveForMonth(c,new Date().getFullYear(),new Date().getMonth())||c.key===v.cat));
+  const close="document.getElementById('rfpop').remove()";
+  const lbl='style="font-size:11px;color:var(--mu);min-width:0"',inp='style="margin-top:4px;padding:9px 6px;font-size:13px;min-width:0"';
+  document.body.insertAdjacentHTML('beforeend','<div class="overlay" id="rfpop" onclick="if(event.target.id===\'rfpop\')'+close+'"><div class="modal" style="max-height:88vh;overflow-y:auto">'+
+    '<div class="modal-title">'+(r?'Modifier':'Nouvelle donnée récurrente')+'</div>'+
+    (r?'':'<div class="rtoggle" id="rf-type" style="width:100%;margin-bottom:12px"><button type="button" data-t="expense" class="on" style="flex:1" onclick="rfPickType(\'expense\')">Dépense</button><button type="button" data-t="income" style="flex:1" onclick="rfPickType(\'income\')">Revenu</button></div>')+
+    '<div class="fsec" style="margin-bottom:10px"><label class="fl">Libellé</label><input class="fi" type="text" id="rf-desc" placeholder="Ex : Netflix, Loyer, Virement parents" value="'+escH(v.desc)+'"></div>'+
+    '<div class="fsec" style="margin-bottom:10px"><label class="fl">Montant (€)</label><input class="fi" type="number" id="rf-amt" inputmode="decimal" placeholder="0.00" value="'+v.amount+'"></div>'+
+    '<div class="fsec" id="rf-catwrap" style="margin-bottom:10px;display:'+(window._rf.type==='income'?'none':'block')+'"><label class="fl">Catégorie</label><div class="catg" id="rf-cats">'+
+      cats.map(c=>'<button class="catb'+(c.key===v.cat?' sel':'')+'" onclick="rfPickCat(this,\''+c.key+'\')"><span class="catic">'+c.icon+'</span>'+escH(c.label)+'</button>').join('')+'</div></div>'+
+    '<div class="fsec" style="margin-bottom:10px"><label class="fl">Fréquence</label><select class="fi" id="rf-freq" onchange="rfFreqChange()">'+
+      FREQ_OPTS.map(([k,l])=>'<option value="'+k+'"'+(k===fsel?' selected':'')+'>'+l+'</option>').join('')+'</select>'+
+      '<div id="rf-nwrap" style="display:'+(fsel==='mN'||fsel==='wN'?'flex':'none')+';align-items:center;gap:8px;margin-top:8px;font-size:13px;color:var(--mu2)">Tous les <input class="fi" type="number" id="rf-n" min="1" value="'+nVal+'" style="width:70px;padding:8px"> <span id="rf-nunit">'+(fsel==='wN'?'semaines':'mois')+'</span></div></div>'+
+    '<div class="fsec" style="margin-bottom:10px;display:grid;grid-template-columns:1fr 1fr;gap:8px">'+
+      '<label '+lbl+'>Début<input class="fi" type="date" id="rf-start" value="'+(r?r.start:t)+'" '+inp+'></label>'+
+      '<label '+lbl+'>Fin (facultatif)<input class="fi" type="date" id="rf-end" value="'+(r&&r.end?r.end:'')+'" '+inp+'></label></div>'+
+    '<div style="font-size:11px;color:var(--mu);text-align:center;margin:-2px 0 6px">Les mois déjà passés ne sont jamais modifiés.</div>'+
+    '<button class="btnp" onclick="saveRecurForm()">Enregistrer</button>'+
+    '<button onclick="'+close+'" style="width:100%;background:none;border:none;color:var(--mu);padding:12px;cursor:pointer;font-family:inherit;font-size:14px;margin-top:4px">Annuler</button></div></div>');
+}
+function saveRecurForm(){
+  const f=window._rf,desc=document.getElementById('rf-desc').value.trim();
+  const amount=parseFloat((document.getElementById('rf-amt').value||'').replace(',','.'));
+  const start=document.getElementById('rf-start').value,end=document.getElementById('rf-end').value||null;
+  const fs=document.getElementById('rf-freq').value,n=Math.max(1,parseInt(document.getElementById('rf-n').value,10)||1);
+  const freq=fs==='wN'?{unit:'week',every:n}:{unit:'month',every:fs==='mN'?n:parseInt(fs.slice(1),10)};
+  if(!desc||!amount||amount<=0||!start){showToast('Remplis libellé, montant et début');return;}
+  if(f.type==='expense'&&!f.cat){showToast('Choisis une catégorie');return;}
+  if(end&&end<start){showToast('La fin est avant le début');return;}
+  const v={amount,cat:f.type==='income'?null:f.cat,desc};
+  document.getElementById('rfpop').remove();
+  if(!f.id){
+    recurring.push(normalizeRecur({id:'rr'+Date.now().toString(36),type:f.type,versions:[{from:'0000-01-01',...v}],start,end,freq,activity:[],genFrom:monthFirst(0),done:[]}));
+    afterRecurChange('Donnée récurrente ajoutée ✓');return;
+  }
+  const r=recurring.find(x=>x.id===f.id);if(!r)return;
+  // Calendrier (début / fin / fréquence) : appliqué tout de suite, sans toucher aux mois passés.
+  const schedChanged=r.start!==start||r.end!==end||r.freq.unit!==freq.unit||r.freq.every!==freq.every;
+  if(schedChanged){
+    r.start=start;r.end=end;r.freq=freq;
+    if(r.genFrom<monthFirst(0))r.genFrom=monthFirst(0);
+    if(end){const after=ymd(new Date(parseYmd(end).getTime()+864e5));dropRecurFrom(r,after);}
+  }
+  // Valeurs (montant / catégorie / libellé) : l'utilisatrice choisit la prise d'effet (Phase 12).
+  const cur=recurVersionAt(r,ymd(new Date()));
+  const valChanged=cur.amount!==v.amount||cur.desc!==v.desc||(cur.cat||null)!==(v.cat||null);
+  if(!valChanged){afterRecurChange(schedChanged?'Modifiée ✓':null);return;}
+  if(schedChanged){syncRecurring();save();}
+  openEffectPicker('Modifier « '+desc+' »',from=>{applyRecurVersion(r,from+'-01',v);afterRecurChange('Modifiée à partir de '+moLabel(from)+' ✓');});
 }
 
 function resetAll(){
   if(!confirm('Supprimer TOUTES les données ?'))return;
-  expenses=[];recurItems=[];recurIncome=[];monthInc={};monthBon={};lastMonth='';userAccounts=[];catLimits={};
+  expenses=[];recurring=[];monthInc={};monthBon={};lastMonth='';userAccounts=[];catLimits={};
   categories=DEFAULT_CATS.map(normalizeCat);buildCAT();
   save();renderDash();renderSet();renderSave();buildFilter();buildCatGrid();showToast('Réinitialisé');
 }
 function exportData(){
-  const blob=new Blob([JSON.stringify({expenses,monthInc,monthBon,recurItems,recurIncome,accounts:userAccounts,catLimits,categories},null,2)],{type:'application/json'});
+  const blob=new Blob([JSON.stringify({expenses,monthInc,monthBon,recurring,accounts:userAccounts,catLimits,categories},null,2)],{type:'application/json'});
   const url=URL.createObjectURL(blob),a=document.createElement('a');
   a.href=url;a.download='monbudget_copine_backup.json';document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);
   showToast('Export téléchargé ✓');
@@ -1392,8 +1804,9 @@ function importData(input){
       if(data.expenses)    expenses    =data.expenses;
       if(data.monthInc)    monthInc    =data.monthInc;
       if(data.monthBon)    monthBon    =data.monthBon;
-      if(data.recurItems)  recurItems  =data.recurItems;
-      if(data.recurIncome) recurIncome =data.recurIncome;
+      // Récurrences : nouveau format, sinon ancien backup (2 listes) → migration.
+      if(Array.isArray(data.recurring))recurring=data.recurring.map(normalizeRecur);
+      else if(data.recurItems||data.recurIncome)recurring=migrateRecurring(data.recurItems||[],data.recurIncome||[]);
       if(data.accounts)    userAccounts=data.accounts;
       if(data.catLimits)   catLimits   =data.catLimits;
       // Catégories : si le fichier en contient (nouveau format) on les restaure ;
@@ -1422,7 +1835,9 @@ function setTodayDate(){
   document.getElementById('tdate').textContent=n.getDate()+' '+MONTHS[n.getMonth()].toLowerCase()+' '+n.getFullYear();
 }
 async function init(){
+  try{if(screen.orientation&&screen.orientation.lock)screen.orientation.lock('portrait').catch(()=>{});}catch(e){} // Android (app installée) ; iOS : écran de rotation CSS
   load();
+  if(syncRecurring()||_recMigrated)save();
   loadChartRanges();
   setTodayDate();
   renderDash();renderSet();renderSave();buildFilter();buildCatGrid();renderCharts();
