@@ -381,7 +381,7 @@ function limMeta(k){return CAT[k]||LIMIT_EXTRA[k]||CAT.autre;}
 const SK='bg11_c',SR='br11_c',SI='bi11_c',SB='bb11_c',SL='bl11_c',SC='bg11_c_cats',RK='bg11_c_recur2';
 
 // ─── State ────────────────────────────────────
-let _recMigrated=false;
+let _recMigrated=false,_periodsCleaned=false;
 let projects=[]; // projets d'épargne (clé bg11_c_proj)
 let expenses=[],recurring=[],monthInc={},monthBon={},userAccounts=[],catLimits={};
 let lastMonth='',offset=0,editId=null,selCatVal=null,histFilt='all',tChart=null;
@@ -463,6 +463,37 @@ function setCatActivity(k,on,fromKey){
   kept.push({from:fromKey,on});
   c.activity=normalizeActivity(kept);
 }
+// Nettoyage (corrige les renouvellements faits AVANT la fin de période — ancien bug) :
+//  a) doublons exacts (mêmes dates) → on garde le plus récent ;
+//  b) copie « +1 an » intacte créée avant la fin de l'originale (date lue dans l'id) → supprimée ;
+//  c) périodes qui se chevauchent → on garde la plus récemment créée (celle que « Modifier » touchait,
+//     donc celle qui porte les réglages actuels). Les périodes passées non chevauchantes sont gardées.
+function periodCreatedYmd(x){const t=parseInt(String(x.id||'').slice(1),36);return t>1.6e12&&t<4e12?ymd(new Date(t)):null;}
+function cleanPeriods(c){
+  if(!c.periods||c.periods.length<2)return false;
+  const before=c.periods.length;
+  let list=c.periods.map((x,i)=>Object.assign({},x,{_i:i}));
+  list=list.filter(x=>!list.some(y=>y._i>x._i&&y.start===x.start&&y.end===x.end));
+  list=list.filter(x=>{const cr=periodCreatedYmd(x);return !(cr&&list.some(a=>a!==x&&x.start===shiftYear(a.start,1)&&x.end===shiftYear(a.end,1)&&x.amount===a.amount&&cr<=a.end));});
+  list=list.filter(x=>!list.some(y=>y._i>x._i&&y.start<=x.end&&y.end>=x.start));
+  c.periods=list.map(({_i,...x})=>x);
+  return c.periods.length!==before;
+}
+// Liste de toutes les périodes d'une catégorie (plus aucune période « fantôme » invisible).
+function openPeriodsList(k){
+  const def=catByKey(k);if(!def)return;
+  const close="closeOv('plpop')",lbl={current:'<span style="color:var(--te)">En cours</span>',ended:'Terminée',future:'À venir'};
+  const rows=def.periods.slice().sort((a,b)=>b.start.localeCompare(a.start)).map(x=>'<div class="lrow" style="cursor:default"><div class="lmid"><div class="lt">'+fmtD(x.start)+' → '+fmtD(x.end)+'</div><div class="ls">'+lbl[periodState(x)]+' · '+fr(periodSpent(k,x))+' dépensés</div></div>'+
+    '<div class="lv">'+fr(x.amount)+'</div><button class="txmenu" onclick="delPeriod(\''+k+'\',\''+x.id+'\')">✕</button></div>').join('');
+  document.body.insertAdjacentHTML('beforeend','<div class="overlay" id="plpop" onclick="if(event.target.id===\'plpop\')'+close+'"><div class="modal" style="max-height:80vh;overflow-y:auto">'+
+    '<div class="modal-title">'+def.icon+' '+escH(def.label)+' — périodes</div>'+rows+
+    '<button onclick="'+close+'" style="width:100%;background:var(--s3);border:none;color:var(--mu2);border-radius:12px;padding:13px;font-size:15px;cursor:pointer;font-family:inherit;margin-top:12px">Fermer</button></div></div>');
+}
+function delPeriod(k,id){
+  const def=catByKey(k);if(!def)return;const x=def.periods.find(z=>z.id===id);if(!x)return;
+  if(!confirm('Supprimer la période '+fmtD(x.start)+' → '+fmtD(x.end)+' ? (les dépenses restent, seule l\'enveloppe disparaît)'))return;
+  def.periods=def.periods.filter(z=>z.id!==id);save();renderSet();renderDash();closeOv('plpop');if(def.periods.length)openPeriodsList(k);showToast('Période supprimée');
+}
 function loadCategories(){
   let stored=null;
   try{stored=JSON.parse(localStorage.getItem(SC));}catch(e){stored=null;}
@@ -472,6 +503,7 @@ function loadCategories(){
     return;
   }
   categories=stored.map(normalizeCat);
+  if(categories.map(cleanPeriods).some(Boolean))_periodsCleaned=true; // sauvegardé à l'init
   // Garde-fou : une catégorie par défaut absente est réinjectée à sa place —
   // on ne perd JAMAIS une des catégories de base.
   DEFAULT_CATS.forEach((d,i)=>{
@@ -1157,10 +1189,22 @@ function buildFilter(){
 }
 function setFilt(f){histFilt=f;buildFilter();renderHist();}
 
+// Les revenus récurrents vivent dans monthBon (pas dans expenses) → avant, absents de l'Historique.
+function bonEntries(){
+  const out=[];
+  Object.entries(monthBon).forEach(([k,arr])=>arr.forEach((b,i)=>out.push({id:null,_bon:true,_key:k,_idx:i,date:b.date||k+'-01',desc:b.desc,amount:b.amount,cat:'revenu',recurId:b.recurId||null})));
+  return out;
+}
+function openBonAS(k,i,ev){
+  ev.stopPropagation();const b=(monthBon[k]||[])[i];if(!b)return;
+  if(b.recurId&&recurring.some(r=>r.id===b.recurId)){openRecurForm(b.recurId);return;} // géré par sa donnée récurrente
+  editBonus(k,i);
+}
 function renderHist(){
   let filtered;
-  if(histFilt==='all') filtered=expenses;
+  if(histFilt==='all') filtered=expenses.concat(bonEntries());
   else if(histFilt==='remb') filtered=expenses.filter(e=>e.remb===true);
+  else if(histFilt==='revenu') filtered=expenses.filter(e=>e.cat==='revenu').concat(bonEntries());
   else filtered=expenses.filter(e=>e.cat===histFilt);
 
   const grouped={};
@@ -1177,7 +1221,7 @@ function renderHist(){
     const depTotal=getRealDep(sorted).reduce((s,e)=>s+e.amount,0);
     const rembAmt=sorted.filter(e=>e.remb&&e.cat!=='revenu').reduce((s,e)=>s+e.amount,0);
     const revAmt=sorted.filter(e=>e.cat==='revenu').reduce((s,e)=>s+e.amount,0);
-    const sal=getIncBase(g.y,g.m),eco=sal>0?(sal+revAmt-(depTotal-rembAmt)):null;
+    const sal=getIncBase(g.y,g.m),eco=sal>0?monthSaving(g.y,g.m):null; // inclut les revenus récurrents
     const border=eco!==null&&eco>0?'var(--te)':'var(--co)';
     return '<div style="margin-bottom:18px"><div class="mhrow"><span class="mhtitle">'+g.lbl+'</span><span class="mhmeta">'+fa(depTotal)+(eco!==null?' · <span style="color:var(--te)">'+fa(eco)+' épargnés</span>':'')+'</span></div>'+
       '<div class="txlist" style="border-left:2.5px solid '+border+'">'+
@@ -1186,7 +1230,10 @@ function renderHist(){
         const isGain=e.cat==='revenu'||e.remb===true;
         const prefix=isGain?'+':'';
         const rembTag=e.remb?'<span style="font-size:10px;background:rgba(29,158,117,0.18);color:var(--te);border-radius:10px;padding:1px 7px;margin-left:4px">Remb.</span>':'';
-        return '<div class="txrow"><div class="txic" style="background:'+cfg.color+'22">'+cfg.icon+'</div><div class="txinfo"><div class="txname">'+e.desc+rembTag+'</div><div class="txdate">'+d.getDate().toString().padStart(2,'0')+' '+MS[d.getMonth()]+(e.remb?' · Remboursement':'')+'</div></div><div style="display:flex;align-items:center;gap:6px"><span class="txamt'+(isGain?' gain':'')+'">'+prefix+fa(e.amount)+'</span><button class="txmenu" onclick="openAS(\''+e.id+'\',event)">···</button></div></div>';
+        const recTag=e.recurId?'<span style="font-size:10px;background:var(--pudim);color:var(--pu);border-radius:10px;padding:1px 7px;margin-left:4px">🔁 Récurrent</span>':'';
+        const soon=e.date>ymd(new Date())?' · à venir':'';
+        const menu=e._bon?'openBonAS(\''+e._key+'\','+e._idx+',event)':'openAS(\''+e.id+'\',event)';
+        return '<div class="txrow"'+(soon?' style="opacity:.6"':'')+'><div class="txic" style="background:'+cfg.color+'22">'+(e._bon?'💸':cfg.icon)+'</div><div class="txinfo"><div class="txname">'+escH(e.desc)+rembTag+recTag+'</div><div class="txdate">'+d.getDate().toString().padStart(2,'0')+' '+MS[d.getMonth()]+(e.remb?' · Remboursement':'')+soon+'</div></div><div style="display:flex;align-items:center;gap:6px"><span class="txamt'+(isGain?' gain':'')+'">'+prefix+fa(e.amount)+'</span><button class="txmenu" onclick="'+menu+'">···</button></div></div>';
       }).join('')+
       '<div style="display:flex;justify-content:space-between;padding:8px 13px;font-size:11px;color:var(--mu);border-top:0.5px solid var(--b)"><span>'+sorted.length+' transaction'+(sorted.length>1?'s':'')+'</span><span>'+fa(depTotal)+'</span></div></div></div>';
   }).join('');
@@ -1525,7 +1572,7 @@ function catManageRow(k){
     if(nextEv)notes.push((nextEv.on?'active':'inactive')+' dès '+moLabel(nextEv.from));
   }
   const lp=latestPeriod(def);
-  if(lp&&!catLimits[k]&&lp.end<t)notes.push('<span style="color:var(--am)">période terminée</span>');
+  if(lp&&!catLimits[k]){const st=periodState(lp);notes.push(st==='ended'?'<span style="color:var(--am)">Terminée</span>':st==='future'?'À venir':'<span style="color:var(--te)">En cours</span>');}
   const sub=notes.join(' · '); // 2e ligne seulement si utile (la valeur à droite dit déjà « par mois » / la période)
   return '<div class="lrow" onclick="openCatLimitModal(\''+k+'\')">'+
     '<div class="lic" style="background:'+(c.color||'#888780')+'1f">'+c.icon+'</div>'+
@@ -1645,7 +1692,8 @@ function openCatManageAS(k,ev){
     '<div class="as" id="xcas" onclick="if(event.target.classList.contains(\'as-bg\'))'+close+'"><div class="as-bg"></div><div class="as-box">'+
     '<div style="text-align:center;padding:6px 8px 12px;font-size:13px;color:var(--mu);border-bottom:0.5px solid var(--b);margin-bottom:4px">'+head+'</div>'+
     it('💶',hasBudget?(isObj?'Modifier l\'objectif':'Modifier le budget'):(isObj?'Définir un objectif':'Définir un budget'),"openCatLimitModal('"+k+"')")+
-    (def&&latestPeriod(def)?it('🔁','Renouveler la période',"renewPeriod('"+k+"')"):'')+
+    (def&&canRenew(def)?it('🔁','Renouveler la période',"renewPeriod('"+k+"')"):'')+
+    (def&&def.periods.length?it('🗓️','Voir les périodes',"openPeriodsList('"+k+"')"):'')+
     (canManage?it(catActiveForMonth(def,new Date().getFullYear(),new Date().getMonth())?'⏸️':'▶️',catActiveForMonth(def,new Date().getFullYear(),new Date().getMonth())?'Désactiver':'Réactiver',"toggleCatMonth('"+k+"')"):'')+
     (canManage?it('✏️','Renommer / emoji',"openEditCatModal('"+k+"')"):'')+
     (canManage?it('📦','Archiver',"archiveCat('"+k+"')"):'')+
@@ -1719,6 +1767,8 @@ function saveCatLimit(catKey){
     const start=document.getElementById('lim-start').value,end=document.getElementById('lim-end').value;
     if(!start||!end||end<start){showToast('Dates invalides');return;}
     const lp=latestPeriod(def);
+    // Garde-fou : jamais deux périodes qui se chevauchent pour une même catégorie.
+    if(def.periods.some(x=>x!==lp&&x.start<=end&&x.end>=start)){showToast('Ces dates chevauchent une autre période de cette catégorie');return;}
     // Modifier = corriger la période la plus récente ; une nouvelle période se crée via « Renouveler ».
     if(lp){lp.start=start;lp.end=end;lp.amount=v;}
     else def.periods.push({id:'p'+Date.now().toString(36),start,end,amount:v});
@@ -1737,10 +1787,26 @@ function removeCatLimit(catKey){
   if(def)def.periods=[];
   save();renderSet();renderDash();showToast('Budget supprimé');
 }
-// Phase 17 — « Renouveler » : même période décalée d'un an, même montant (modifiable ensuite).
+// « Renouveler » (corrigé 2026-10) : possible UNIQUEMENT quand la période la plus récente est
+// terminée (fin < aujourd'hui) → jamais deux périodes en cours pour une catégorie.
+// La nouvelle période commence le lendemain de la fin, même durée (en mois si la période
+// couvre des mois entiers : 1-30 sept. → 1-31 oct. ; sinon en jours), même montant.
+function periodState(p){const t=ymd(new Date());return p.end<t?'ended':(p.start>t?'future':'current');}
+function canRenew(def){const lp=latestPeriod(def);return !!lp&&periodState(lp)==='ended';}
+function nextPeriod(p){
+  const a=parseYmd(p.start),b=parseYmd(p.end),dayAfter=new Date(b.getFullYear(),b.getMonth(),b.getDate()+1);
+  const wholeMonths=a.getDate()===1&&dayAfter.getDate()===1;
+  if(wholeMonths){
+    const n=(b.getFullYear()-a.getFullYear())*12+b.getMonth()-a.getMonth()+1;
+    return {start:ymd(dayAfter),end:ymd(new Date(dayAfter.getFullYear(),dayAfter.getMonth()+n,0))};
+  }
+  const days=Math.round((b-a)/864e5);
+  return {start:ymd(dayAfter),end:ymd(new Date(dayAfter.getFullYear(),dayAfter.getMonth(),dayAfter.getDate()+days))};
+}
 function renewPeriod(k){
   const def=catByKey(k),lp=latestPeriod(def);if(!lp)return;
-  const np={id:'p'+Date.now().toString(36),start:shiftYear(lp.start,1),end:shiftYear(lp.end,1),amount:lp.amount};
+  if(!canRenew(def)){showToast('Renouvellement possible après la fin de la période ('+fmtD(lp.end)+')');return;}
+  const np=Object.assign({id:'p'+Date.now().toString(36),amount:lp.amount},nextPeriod(lp));
   def.periods.push(np);delete catLimits[k];
   save();renderSet();renderDash();showToast('Renouvelé : '+fmtD(np.start)+' → '+fmtD(np.end));
 }
@@ -2081,7 +2147,7 @@ function setTodayDate(){
 async function init(){
   try{if(screen.orientation&&screen.orientation.lock)screen.orientation.lock('portrait').catch(()=>{});}catch(e){} // Android (app installée) ; iOS : écran de rotation CSS
   load();
-  if(syncRecurring()||_recMigrated)save();
+  if(syncRecurring()||_recMigrated||_periodsCleaned)save();
   loadChartRanges();
   setTodayDate();
   renderDash();renderSet();renderSave();buildFilter();buildCatGrid();renderCharts();
