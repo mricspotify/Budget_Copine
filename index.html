@@ -981,11 +981,13 @@ function renderEvolutions(y,m){
     const el=document.getElementById('d-'+k+'-evo');if(!el)return;
     el.textContent='';el.style.whiteSpace='';el.style.lineHeight='';
     // Mois en cours : sous le réel, ce qui est encore prévu + le total du mois (« dépenses du mois »)
-    if((k==='inc'||k==='dep')&&!isFinishedMonth(y,m)){
-      const sp=monthSplit(y,m),later=k==='dep'?sp.depLater:sp.incLater,all=k==='dep'?sp.depAll:sp.incAll;
+    // Dépensé du mois en cours : « (±prévu) • total du mois », arrondi et compact (demande de la copine).
+    // (Reçu garde le % d'évolution classique ci-dessous.)
+    if(k==='dep'&&!isFinishedMonth(y,m)){
+      const sp=monthSplit(y,m),later=Math.round(sp.depLater);
       const sEl=document.createElement('span');sEl.className='vs';
-      sEl.textContent=Math.abs(later)>0.004?'+ '+fa(later)+' prévus → '+fa(all):'= '+(k==='dep'?'dépenses':'revenus')+' du mois';
-      el.style.whiteSpace='normal';el.style.lineHeight='1.35';el.append(sEl);return; // mêmes centimes que l'Historique
+      sEl.textContent='+ daté : ('+(later<0?'−':'+')+fr(Math.abs(later))+') • '+fr(sp.depAll);
+      el.append(sEl);return;
     }
     // Mois pas terminé : l'épargne totale s'arrête au dernier mois terminé → on le dit, pas de % trompeur.
     if(k==='save'&&!isFinishedMonth(y,m)){
