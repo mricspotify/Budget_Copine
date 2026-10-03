@@ -55,6 +55,7 @@ html,body{height:100%;background:var(--bg);color:var(--tx);font-family:-apple-sy
 .mnav-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
 .mlbl{font-size:17px;font-weight:600;letter-spacing:-.03em}
 .mnav{display:flex;gap:6px}
+.mnb:disabled{opacity:.3;cursor:default}
 .mnb{width:30px;height:30px;border-radius:8px;background:var(--s2);border:0.5px solid var(--b2);color:var(--mu2);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center}
 .brow{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:0.5px solid var(--b)}
 .brow:last-child{border-bottom:none}
@@ -250,11 +251,11 @@ html,body{height:100%;background:var(--bg);color:var(--tx);font-family:-apple-sy
     <div class="page active" id="page-dash"><div class="inner">
       <div class="mnav-row">
         <div><div class="mlbl" id="dash-month">—</div><div style="font-size:11px;color:var(--mu);margin-top:2px">Résumé du mois</div></div>
-        <div class="mnav"><button class="mnb" onclick="changeMonth(-1)">‹</button><button class="mnb" onclick="changeMonth(1)">›</button></div>
+        <div class="mnav"><button class="mnb" id="dm-prev" onclick="changeMonth(-1)">‹</button><button class="mnb" id="dm-next" onclick="changeMonth(1)">›</button></div>
       </div>
       <div class="grid2">
-        <div class="card tap" onclick="openRevenuPop()"><div class="cl"><i style="background:var(--bl)"></i>Revenu</div><div class="cv" style="color:var(--bl)" id="d-inc">—</div><div class="evo" id="d-inc-evo"></div></div>
-        <div class="card"><div class="cl"><i style="background:var(--co)"></i>Dépensé</div><div class="cv" style="color:var(--co)" id="d-dep">—</div><div class="evo" id="d-dep-evo"></div></div>
+        <div class="card tap" onclick="openRevenuPop()"><div class="cl"><i style="background:var(--bl)"></i><span id="d-inc-lbl">Revenu</span></div><div class="cv" style="color:var(--bl)" id="d-inc">—</div><div class="evo" id="d-inc-evo"></div></div>
+        <div class="card"><div class="cl"><i style="background:var(--co)"></i><span id="d-dep-lbl">Dépensé</span></div><div class="cv" style="color:var(--co)" id="d-dep">—</div><div class="evo" id="d-dep-evo"></div></div>
         <div class="card"><div class="cl"><i style="background:var(--te)"></i>Reste</div><div class="cv" style="color:var(--te)" id="d-rest">—</div><div class="evo" id="d-rest-evo"></div></div>
         <div class="card"><div class="cl"><i style="background:var(--am)"></i>Épargne totale</div><div class="cv" style="color:var(--am)" id="d-save">—</div><div class="evo" id="d-save-evo"></div></div>
       </div>
@@ -702,7 +703,19 @@ function showPage(id,btn){
   if(id==='save'){renderSave();svReset();} // toujours la 1re page (Projets), jamais l'historique
   if(id==='add'&&!editId)resetForm();
 }
-function changeMonth(d){offset+=d;renderDash();}
+// Bornes de navigation (2026-10) : du 1er mois qui contient des données jusqu'au mois actuel.
+// Décalage en mois par rapport au mois actuel (0 = maintenant, négatif = passé).
+function firstDataOff(){
+  const n=new Date(),k=getAllMonths().find(x=>x<=mk(n.getFullYear(),n.getMonth()));
+  if(!k)return 0;return (+k.slice(0,4)-n.getFullYear())*12+(+k.slice(5)-1-n.getMonth());
+}
+const clampOff=o=>Math.max(firstDataOff(),Math.min(0,o));
+function navBtn(on,fn,lbl){return '<button class="cnb"'+(on?' onclick="'+fn+'"':' disabled style="opacity:.3;cursor:default"')+'>'+lbl+'</button>';}
+function changeMonth(d){offset=clampOff(offset+d);renderDash();}
+function updDashNav(){
+  const p=document.getElementById('dm-prev'),n=document.getElementById('dm-next');if(!p||!n)return;
+  p.disabled=offset<=firstDataOff();n.disabled=offset>=0;
+}
 
 // ─── Savings calc ─────────────────────────────
 function getAllMonths(){
@@ -766,6 +779,20 @@ function curMk(){const n=new Date();return mk(n.getFullYear(),n.getMonth());}
 // Changement de limite programmé dans le futur (affiché en Réglages).
 function nextLimChange(k){const c=curMk();return (limHist[k]||[]).find(e=>e.from>c)||null;}
 
+// ─── Réel / prévu (2026-10) ─────────────────
+// « Dépenses du mois » = tout ce qui est enregistré pour le mois (y compris les récurrentes datées
+// plus tard) ; « Dépensé au J » = seulement ce qui est daté jusqu'à aujourd'hui. Toujours en NET
+// (remboursements/entrées déduits). Idem pour les revenus (« Reçu au J »).
+function monthSplit(y,m){
+  const t=ymd(new Date()),txs=getExp(y,m),key=mk(y,m);
+  const sg=e=>e.remb?-e.amount:e.amount;
+  const dep=txs.filter(e=>e.cat!=='revenu'),rev=txs.filter(e=>e.cat==='revenu'),bons=monthBon[key]||[];
+  const depAll=dep.reduce((s,e)=>s+sg(e),0),depNow=dep.filter(e=>e.date<=t).reduce((s,e)=>s+sg(e),0);
+  const bonAll=bons.reduce((s,b)=>s+b.amount,0),bonNow=bons.filter(b=>(b.date||key+'-01')<=t).reduce((s,b)=>s+b.amount,0);
+  const sal=getIncBase(y,m),revAll=rev.reduce((s,e)=>s+e.amount,0),revNow=rev.filter(e=>e.date<=t).reduce((s,e)=>s+e.amount,0);
+  return {depAll,depNow,depLater:depAll-depNow,incAll:sal+revAll+bonAll,incNow:sal+revNow+bonNow,incLater:(revAll-revNow)+(bonAll-bonNow)};
+}
+
 // ─── Épargne & projets (refonte onglet Épargne) ──
 // Règles validées : l'épargne totale ne compte QUE les mois terminés (+ comptes manuels),
 // moins l'argent sorti par les projets archivés. Les projets sont une répartition VIRTUELLE ;
@@ -808,12 +835,16 @@ function renderDash(){
   const incTotal=sal+revAmt+bonAmt;
   const rest=incTotal-total;
 
-  document.getElementById('d-inc').textContent=incTotal>0?fa(incTotal):'— €';
-  document.getElementById('d-dep').textContent=fa(total);
+  const _cur=!isFinishedMonth(y,m),_sp=monthSplit(y,m),_td=new Date().getDate();
+  document.getElementById('d-inc-lbl').textContent=_cur?'Reçu · au '+_td:'Revenus du mois';
+  document.getElementById('d-dep-lbl').textContent=_cur?'Dépensé · au '+_td:'Dépenses du mois';
+  document.getElementById('d-inc').textContent=_cur?fa(_sp.incNow):(incTotal>0?fa(incTotal):'— €');
+  document.getElementById('d-dep').textContent=_cur?fa(_sp.depNow):fa(total);
   const re=document.getElementById('d-rest');re.textContent=fa(rest);re.style.color=rest>=0?'var(--te)':'var(--re)';
   re.classList.toggle('provis',!isFinishedMonth(y,m)); // mois pas terminé → valeur provisoire
   document.getElementById('d-save').textContent=fr(savingsTotalAt(y,m));
   renderEvolutions(y,m);
+  updDashNav();
 
   const cc=document.getElementById('cat-cards');
   const mkCC=(k)=>{const c=CAT[k],v=by[k]||0;const vc=v>0?c.color:v<0?'var(--te)':'var(--mu)';return '<div class="card tap" onclick="openCatPop(\''+k+'\','+y+','+m+')" style="text-align:center;padding:9px 4px;min-width:0"><div style="font-size:18px;margin-bottom:2px">'+c.icon+'</div><div style="font-size:10px;color:var(--mu);margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+escH(c.label)+'</div><div style="font-size:13px;font-weight:700;color:'+vc+'">'+fr(v)+'</div></div>';};
@@ -948,7 +979,14 @@ function renderEvolutions(y,m){
   const vs=MSF[pm];
   [['inc',true],['dep',false],['rest',true],['save',true]].forEach(([k,upIsGood])=>{
     const el=document.getElementById('d-'+k+'-evo');if(!el)return;
-    el.textContent='';
+    el.textContent='';el.style.whiteSpace='';el.style.lineHeight='';
+    // Mois en cours : sous le réel, ce qui est encore prévu + le total du mois (« dépenses du mois »)
+    if((k==='inc'||k==='dep')&&!isFinishedMonth(y,m)){
+      const sp=monthSplit(y,m),later=k==='dep'?sp.depLater:sp.incLater,all=k==='dep'?sp.depAll:sp.incAll;
+      const sEl=document.createElement('span');sEl.className='vs';
+      sEl.textContent=Math.abs(later)>0.004?'+ '+fa(later)+' prévus → '+fa(all):'= '+(k==='dep'?'dépenses':'revenus')+' du mois';
+      el.style.whiteSpace='normal';el.style.lineHeight='1.35';el.append(sEl);return; // mêmes centimes que l'Historique
+    }
     // Mois pas terminé : l'épargne totale s'arrête au dernier mois terminé → on le dit, pas de % trompeur.
     if(k==='save'&&!isFinishedMonth(y,m)){
       const lf=new Date(new Date().getFullYear(),new Date().getMonth()-1,1);
@@ -1015,7 +1053,7 @@ function anaCatStats(win){
     const txs=mw.reduce((s,{y,m})=>s+getExp(y,m).filter(e=>e.cat!=='revenu'&&!e.remb&&anaKeyOf(e)===k).length,0);
     const h=Math.floor(vals.length/2),trend=vals.length>=4?anaPct(anaMean(vals.slice(h)),anaMean(vals.slice(0,h))):null;
     out.push({k,months:mw,vals,mean:anaMean(vals),median:anaMedian(vals),std:anaStd(vals),share:tot>0?sum/tot:0,trend,txs,
-      ticket:txs?vals.reduce((s,v)=>s+v,0)/txs:0,regular:vals.filter(v=>v>0.005).length/vals.length});
+      cv:anaMean(vals)>0?anaStd(vals)/anaMean(vals):0,ticket:txs?vals.reduce((s,v)=>s+v,0)/txs:0,regular:vals.filter(v=>v>0.005).length/vals.length});
   });
   return out.sort((a,b)=>b.mean-a.mean);
 }
@@ -1031,10 +1069,20 @@ function anaRecurringCandidates(win){
   return Object.values(g).filter(x=>Object.keys(x.months).length>=Math.max(3,Math.ceil(last.length*0.66))&&anaStd(x.amts)/Math.max(anaMean(x.amts),1)<=0.15)
     .map(x=>({desc:x.desc,cat:x.cat,amount:anaMean(x.amts),n:Object.keys(x.months).length,of:last.length}));
 }
+// Fiabilité : 1 mois = très faible, 2 = faible, 3-5 = à confirmer, ≥ 6 = fiable
+// (rétrogradée d'un cran si les montants varient énormément d'un mois à l'autre).
+function anaRelia(n,cv){
+  let l=n<=1?0:n===2?1:n<6?2:3;if(l>=2&&cv>1)l--;
+  return [{t:'⚠️ '+n+' mois',c:'var(--re)',bg:'var(--redim)',long:'Estimation basée sur seulement '+n+' mois de données : elle peut encore beaucoup changer.'},
+    {t:'⚠️ '+n+' mois',c:'#B7791F',bg:'rgba(239,159,39,.14)',long:'Estimation basée sur '+n+' mois seulement : encore peu fiable.'},
+    {t:n+' mois',c:'var(--mu2)',bg:'var(--s3)',long:'Estimation basée sur '+n+' mois : à confirmer avec le temps.'},
+    {t:'✓ '+n+' mois',c:'var(--te)',bg:'rgba(29,158,117,.12)',long:'Estimation fiable : basée sur '+n+' mois de données.'}][l];
+}
+const reliaPill=r=>'<span style="font-size:10px;font-weight:600;color:'+r.c+';background:'+r.bg+';border-radius:8px;padding:1px 6px;white-space:nowrap">'+r.t+'</span>';
 function setAnaWin(w){anaWin=w;renderAnalyse();}
 function setAnaCat(c){anaCat=c;renderAnalyse();}
 function setAnaMode(m){anaMode=m;renderAnalyse();}
-function navAnaMonth(d){anaMonthOff=Math.min(0,anaMonthOff+d);renderAnalyse();}
+function navAnaMonth(d){anaMonthOff=clampOff(anaMonthOff+d);renderAnalyse();}
 function renderAnalyse(){
   const body=document.getElementById('ana-body');if(!body)return;
   const W=anaWindow(),win=W.cur,n=new Date(),cy=n.getFullYear(),cm=n.getMonth(),today=n.getDate();
@@ -1054,6 +1102,7 @@ function renderAnalyse(){
   };
   const kRow=(lbl,col,val,evoHtml)=>'<div class="kpi-row"><div><div class="kpi-l"><i style="background:var(--'+col+')"></i>'+lbl+'</div><div class="kpi-v" style="color:var(--'+col+')">'+val+'</div><div class="kpi-s">par mois en moyenne</div></div><div class="kpi-sep"></div><div>'+evoHtml+'</div></div>';
   h+='<div class="sh" style="padding:0 2px">Vue d\'ensemble · '+win.length+' mois terminé'+(win.length>1?'s':'')+'</div>';
+  if(win.length<3)h+='<div class="ins" style="border:none;padding:0 2px 8px;font-size:12px;color:#B7791F"><span class="ic">⚠️</span><span>Basé sur '+win.length+' mois seulement : moyennes et tendances vont encore bouger.</span></div>';
   h+='<div class="sec" style="padding-top:4px;padding-bottom:4px">'+
     kRow('Revenus','bl',fr(A.inc),evo(A.incs,true))+
     kRow('Dépenses','co',fr(A.dep),evo(A.deps,false))+
@@ -1078,7 +1127,7 @@ function renderAnalyse(){
   h+='<div class="sec"><div class="sh">'+MONTHS[cm]+' en cours · au '+today+'</div>'+
     '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px"><div><div style="font-size:22px;font-weight:700;color:var(--co)">'+fr(atDay)+'</div><div style="font-size:11.5px;color:var(--mu)">dépensés · d\'habitude '+fr(avgAt)+' à cette date</div></div>'+
     '<div style="text-align:right">'+anaBadge(dlt,false)+'</div></div>'+
-    (win.length>=2?'<div style="margin-top:10px;padding:9px 11px;border-radius:10px;background:var(--s3);font-size:12.5px;line-height:1.45">🔮 Fin de mois estimée : <b>'+fr(proj)+'</b> <span style="color:var(--mu)">(ce qui est déjà dépensé + ce que tu dépenses d\'habitude d\'ici la fin du mois)</span></div>':'')+
+    (win.length>=2?'<div style="margin-top:10px;padding:9px 11px;border-radius:10px;background:var(--s3);font-size:12.5px">🔮 Fin de mois estimée : <b>'+fr(proj)+'</b></div>':'')+
     '</div>';
 
   // ── 3. Au fil du mois (jour par jour), filtrable par catégorie
@@ -1087,20 +1136,20 @@ function renderAnalyse(){
   if(anaCat!=='all'&&!usedCats.some(c=>c.key===anaCat))anaCat='all';
   h+='<div class="sec"><div class="chart-top"><div class="chart-title">Au fil du mois</div>'+
     '<div class="rtoggle"><button class="'+(anaMode==='cum'?'on':'')+'" onclick="setAnaMode(\'cum\')">Cumul</button><button class="'+(anaMode==='day'?'on':'')+'" onclick="setAnaMode(\'day\')">Par jour</button></div></div>'+
-    '<div class="chart-ctrl"><div class="cnav"><button class="cnb" onclick="navAnaMonth(-1)">‹</button><button class="cnb" onclick="navAnaMonth(1)"'+(anaMonthOff>=0?' style="opacity:.3"':'')+'>›</button><span class="cperiod">'+MONTHS[rm]+' '+ry+'</span></div></div>'+
+    '<div class="chart-ctrl"><div class="cnav">'+navBtn(anaMonthOff>firstDataOff(),'navAnaMonth(-1)','‹')+navBtn(anaMonthOff<0,'navAnaMonth(1)','›')+'<span class="cperiod">'+MONTHS[rm]+' '+ry+'</span></div></div>'+
     '<div class="filterbar" style="margin:8px 0 2px">'+[{k:'all',l:'Tout'}].concat(usedCats.map(c=>({k:c.key,l:c.icon+' '+escH(c.label)}))).map(f=>'<button class="fchip'+(anaCat===f.k?' on':'')+'" onclick="setAnaCat(\''+f.k+'\')">'+f.l+'</button>').join('')+'</div>'+
     '<div class="chart-wrap" style="height:180px"><canvas id="ana-day"></canvas></div>'+
-    '<div class="ana-sub" style="margin:6px 0 0">'+(anaMode==='cum'?'Trait plein = '+MONTHS[rm].toLowerCase()+' · pointillés = ton mois moyen':'Barres roses = week-end')+' · hors dépenses récurrentes</div></div>';
+    '<div class="ana-sub" style="margin:6px 0 0">'+(anaMode==='cum'?'Trait plein = '+MONTHS[rm].toLowerCase()+' · gris = ton mois moyen'+(anaMonthOff===0?' · rose pointillé = déjà prévu':''):'Barres roses = week-end')+' · récurrentes incluses</div></div>';
 
   // ── 4. Quand dépenses-tu ? (jours de la semaine + début/milieu/fin de mois)
   const wk=Array(7).fill(0),wkN=Array(7).fill(0),thirds=[0,0,0];
-  win.forEach(({y,m})=>{const dim=new Date(y,m+1,0).getDate(),a=anaDaily(y,m,anaCat,false);
-    for(let d=1;d<=dim;d++){const wd=(new Date(y,m,d).getDay()+6)%7;wk[wd]+=a[d-1];wkN[wd]++;thirds[d<=10?0:d<=20?1:2]+=a[d-1];}});
+  win.forEach(({y,m})=>{const dim=new Date(y,m+1,0).getDate(),a=anaDaily(y,m,anaCat,false),aR=anaDaily(y,m,anaCat,true);
+    for(let d=1;d<=dim;d++){const wd=(new Date(y,m,d).getDay()+6)%7;wk[wd]+=a[d-1];wkN[wd]++;thirds[d<=10?0:d<=20?1:2]+=aR[d-1];}});
   const wkAvg=wk.map((v,i)=>wkN[i]?v/wkN[i]:0),tSum=thirds.reduce((s,v)=>s+v,0)||1;
   const WD=['Lu','Ma','Me','Je','Ve','Sa','Di'],mxW=Math.max(...wkAvg,1);
   h+='<div class="sec"><div class="sh">Quand dépenses-tu ?'+(anaCat!=='all'?' · '+CAT[anaCat].icon+' '+escH(CAT[anaCat].label):'')+'</div>'+
     '<div style="display:flex;gap:6px;align-items:flex-end;height:74px;margin-bottom:6px">'+wkAvg.map((v,i)=>'<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px"><div style="font-size:9.5px;color:var(--mu)">'+fr(v)+'</div><div style="width:100%;max-width:26px;height:'+Math.max(2,Math.round(v/mxW*44))+'px;border-radius:5px;background:'+(i>=5?'var(--pu)':'#B9B6CC')+'"></div><div style="font-size:10.5px;font-weight:600;color:'+(i>=5?'var(--pu)':'var(--mu2)')+'">'+WD[i]+'</div></div>').join('')+'</div>'+
-    '<div class="ana-sub" style="margin:2px 0 8px">Moyenne par jour de la semaine (hors récurrentes)</div>'+
+    '<div class="ana-sub" style="margin:2px 0 8px">Moyenne par jour de la semaine (hors récurrentes) · ci-dessous : récurrentes incluses</div>'+
     '<div style="display:flex;height:10px;border-radius:5px;overflow:hidden;margin-bottom:5px">'+thirds.map((v,i)=>'<div style="width:'+(v/tSum*100).toFixed(1)+'%;background:'+['#E7A9D6','var(--pu)','#7C3E6D'][i]+'"></div>').join('')+'</div>'+
     '<div style="display:flex;justify-content:space-between;font-size:11px;color:var(--mu2)">'+['Début (1-10)','Milieu (11-20)','Fin (21-31)'].map((l,i)=>'<span>'+l+' <b>'+Math.round(thirds[i]/tSum*100)+' %</b></span>').join('')+'</div></div>';
 
@@ -1113,9 +1162,10 @@ function renderAnalyse(){
     '<div style="position:relative;height:190px;margin:2px 0 10px"><canvas id="ana-cats"></canvas>'+
       '<div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none"><div style="font-size:20px;font-weight:800;letter-spacing:-.03em">'+fr(planTot)+'</div><div style="font-size:10.5px;color:var(--mu)">à prévoir / mois</div></div></div>'+
     cs.map(c=>{const d=CAT[c.k];
+    const r=anaRelia(c.months.length,c.cv),weak=c.months.length<=2;
     return '<div class="ana-row" onclick="openAnaCat(\''+c.k+'\')"><span class="dot" style="background:'+d.color+';width:10px;height:10px;margin:0"></span><span style="font-size:17px">'+d.icon+'</span>'+
-      '<div class="lmid"><div class="lt">'+escH(d.label)+'</div><div class="ls">'+Math.round(c.plan*100)+' % du budget mensuel</div></div>'+
-      '<div class="lv" style="font-size:15px">'+fr(c.mean)+'<small>/ mois à prévoir</small></div></div>';}).join(''):'<div style="color:var(--mu);font-size:13px">Pas encore de dépenses.</div>')+'</div>';
+      '<div class="lmid"><div class="lt">'+escH(d.label)+'</div><div class="ls" style="display:flex;gap:6px;align-items:center">'+Math.round(c.plan*100)+' % du budget '+reliaPill(r)+'</div></div>'+
+      '<div class="lv" style="font-size:15px'+(weak?';color:var(--mu2)':'')+'">'+(weak?'≈ ':'')+fr(c.mean)+(weak?' ?':'')+'<small>/ mois à prévoir</small></div></div>';}).join(''):'<div style="color:var(--mu);font-size:13px">Pas encore de dépenses.</div>')+'</div>';
 
   // ── 6. À surveiller (constats automatiques)
   const ins=[];
@@ -1170,13 +1220,16 @@ function drawAnaDaily(ry,rm,win){
   const cv=document.getElementById('ana-day');if(!cv)return;
   const n=new Date(),isCur=ry===n.getFullYear()&&rm===n.getMonth(),dim=new Date(ry,rm+1,0).getDate();
   const labels=Array.from({length:dim},(_,i)=>String(i+1));
-  const daily=anaDaily(ry,rm,anaCat,false),wkend=labels.map((_,i)=>{const d=new Date(ry,rm,i+1).getDay();return d===0||d===6;});
+  const daily=anaDaily(ry,rm,anaCat,true),wkend=labels.map((_,i)=>{const d=new Date(ry,rm,i+1).getDay();return d===0||d===6;});
   const pastWin=win.filter(({y,m})=>!(y===ry&&m===rm));
   let ds;
   if(anaMode==='cum'){
     const cur=anaCum(daily).map((v,i)=>isCur&&i>=n.getDate()?null:+v.toFixed(2));
-    const avg=labels.map((_,i)=>+anaMean(pastWin.map(({y,m})=>{const c=anaCum(anaDaily(y,m,anaCat,false));return c[Math.min(i,c.length-1)];})).toFixed(2));
+    const avg=labels.map((_,i)=>+anaMean(pastWin.map(({y,m})=>{const c=anaCum(anaDaily(y,m,anaCat,true));return c[Math.min(i,c.length-1)];})).toFixed(2));
+    // Mois en cours : la partie déjà programmée (récurrentes datées plus tard) en pointillés roses
+    const full=anaCum(daily),planned=isCur?full.map((v,i)=>i>=n.getDate()-1?+v.toFixed(2):null):null;
     ds=[{type:'line',data:cur,borderColor:'#C46BAD',backgroundColor:'rgba(196,107,173,0.10)',fill:true,tension:.25,pointRadius:0,borderWidth:2},
+        ...(isCur&&planned[planned.length-1]>cur[n.getDate()-1]+0.004?[{type:'line',data:planned,borderColor:'rgba(196,107,173,0.55)',borderDash:[3,3],pointRadius:0,borderWidth:2,fill:false}]:[]),
         {type:'line',data:avg,borderColor:'rgba(26,26,46,0.35)',borderDash:[5,4],pointRadius:0,borderWidth:1.5,fill:false}];
   } else {
     ds=[{type:'bar',data:daily.map((v,i)=>isCur&&i>=n.getDate()?null:+v.toFixed(2)),backgroundColor:wkend.map(w=>w?'rgba(196,107,173,0.85)':'rgba(130,126,160,0.55)'),borderRadius:3}];
@@ -1184,13 +1237,25 @@ function drawAnaDaily(ry,rm,win){
   const wkPlugin={id:'wk',beforeDatasetsDraw(ch){const x=ch.scales.x,a=ch.chartArea,c=ch.ctx,w=(a.right-a.left)/dim;c.save();c.fillStyle='rgba(196,107,173,0.06)';
     wkend.forEach((we,i)=>{if(we)c.fillRect(x.getPixelForValue(i)-w/2,a.top,w,a.bottom-a.top);});c.restore();}};
   anaCharts.day=new Chart(cv.getContext('2d'),{data:{labels,datasets:ds},plugins:[wkPlugin],options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},
-    tooltip:{callbacks:{title:t=>t[0].label+' '+MSF[rm],label:c=>(anaMode==='cum'?(c.datasetIndex?'Mois moyen : ':'Cumul : '):'Dépensé : ')+fa(c.parsed.y)}}},
+    tooltip:{callbacks:{title:t=>t[0].label+' '+MSF[rm],label:c=>(anaMode==='cum'?(c.dataset.borderDash&&c.dataset.borderDash[0]===3?'Prévu : ':c.datasetIndex&&c.dataset.borderDash?'Mois moyen : ':'Cumul : '):'Dépensé : ')+fa(c.parsed.y)}}},
     scales:{x:{grid:{display:false},ticks:{color:'rgba(26,26,46,0.38)',font:{size:9},autoSkip:true,maxTicksLimit:8,maxRotation:0},border:{display:false}},
       y:{beginAtZero:true,grid:{color:'rgba(0,0,0,0.05)'},ticks:{color:'rgba(26,26,46,0.38)',font:{size:10},callback:v=>v+'€'},border:{display:false}}}}});
 }
 // Détail d'une catégorie : mois par mois, moyenne, régularité, anomalies, saisonnalité si ≥ 12 mois.
 function openAnaCat(k){
-  const W=anaWindow(),c=anaCatStats(W.cur).find(x=>x.k===k);if(!c)return;const d=CAT[k];
+  const W=anaWindow(),all=anaCatStats(W.cur),c=all.find(x=>x.k===k);if(!c)return;const d=CAT[k];
+  const planTot=all.filter(x=>x.mean>0.5).reduce((s,x)=>s+x.mean,0)||1,plan=Math.max(c.mean,0)/planTot,r=anaRelia(c.months.length,c.cv);
+  // Part fixe (données récurrentes) / part variable, en moyenne par mois
+  const fixe=anaMean(c.months.map(({y,m})=>getExp(y,m).filter(e=>e.cat!=='revenu'&&e.recurId&&anaKeyOf(e)===k).reduce((s,e)=>s+(e.remb?-e.amount:e.amount),0)));
+  // Ce mois-ci, au même jour
+  const n=new Date(),td=n.getDate(),nowAt=anaCum(anaDaily(n.getFullYear(),n.getMonth(),k,true))[td-1]||0;
+  const usualAt=anaMean(c.months.map(({y,m})=>{const a=anaCum(anaDaily(y,m,k,true));return a[Math.min(td,a.length)-1]||0;}));
+  // Quand dans le mois (récurrentes incluses)
+  const th=[0,0,0];c.months.forEach(({y,m})=>anaDaily(y,m,k,true).forEach((v,i)=>{th[i<10?0:i<20?1:2]+=v;}));const thS=th.reduce((s,v)=>s+Math.max(v,0),0)||1;
+  // Achats habituels : libellés les plus fréquents
+  const lib={};c.months.forEach(({y,m})=>getExp(y,m).filter(e=>e.cat!=='revenu'&&!e.remb&&anaKeyOf(e)===k).forEach(e=>{const t=String(e.desc||'').trim();if(!t)return;const kk=t.toLowerCase();(lib[kk]=lib[kk]||{t,n:0,s:0});lib[kk].n++;lib[kk].s+=e.amount;}));
+  const top=Object.values(lib).sort((a,b)=>b.n-a.n||b.s-a.s).slice(0,3);
+  const mn=Math.min(...c.vals),mx=Math.max(...c.vals);
   const anomalies=c.months.filter((_,i)=>c.std>0&&c.vals[i]>c.mean+1.5*c.std&&c.vals[i]>c.median*1.4).map(x=>MONTHS[x.m]+' '+x.y);
   let season='';
   if(W.all.length>=12){const byM=Array(12).fill(0),cnt=Array(12).fill(0);W.all.forEach(({y,m})=>{byM[m]+=monthNetDep(y,m,k);cnt[m]++;});
@@ -1200,13 +1265,19 @@ function openAnaCat(k){
   else season='Saisonnalité : disponible après 12 mois d\'historique (encore '+(12-W.all.length)+').';
   const stat=(l,v)=>'<div style="background:var(--s3);border-radius:10px;padding:8px 10px"><div style="font-size:10.5px;color:var(--mu)">'+l+'</div><div style="font-size:14px;font-weight:700">'+v+'</div></div>';
   document.body.insertAdjacentHTML('beforeend','<div class="overlay" id="anapop" onclick="if(event.target.id===\'anapop\')closeOv(\'anapop\')"><div class="modal" style="max-height:88vh;overflow-y:auto">'+
-    '<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px"><div class="lic" style="background:'+d.color+'1f;width:42px;height:42px;font-size:22px">'+d.icon+'</div><div><div style="font-size:17px;font-weight:700">'+escH(d.label)+'</div><div style="font-size:12px;color:var(--mu)">'+c.months.length+' mois terminés analysés</div></div></div>'+
+    '<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px"><div class="lic" style="background:'+d.color+'1f;width:42px;height:42px;font-size:22px">'+d.icon+'</div><div><div style="font-size:17px;font-weight:700">'+escH(d.label)+'</div><div style="font-size:12px;color:var(--mu)">'+c.months.length+' mois terminé'+(c.months.length>1?'s analysés':' analysé')+'</div></div></div>'+
+    '<div style="display:flex;gap:8px;align-items:flex-start;padding:9px 11px;border-radius:10px;background:'+r.bg+';color:'+r.c+';font-size:12px;line-height:1.4;margin-bottom:10px"><span>'+(c.months.length<=2?'⚠️':c.months.length<6?'ℹ️':'✓')+'</span><span>'+r.long+'</span></div>'+
+    '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px"><div><div style="font-size:24px;font-weight:800;letter-spacing:-.03em">'+(c.months.length<=2?'≈ ':'')+fr(c.mean)+'<span style="font-size:13px;font-weight:600;color:var(--mu)"> / mois à prévoir</span></div>'+
+      '<div style="font-size:11.5px;color:var(--mu)">'+Math.round(plan*100)+' % du budget mensuel'+(c.months.length>1?' · de '+fr(mn)+' à '+fr(mx)+' selon les mois':'')+'</div></div></div>'+
     '<div style="position:relative;height:170px"><canvas id="ana-cat"></canvas></div>'+
     '<div class="ana-sub" style="margin:6px 0 10px">Pointillés = moyenne</div>'+
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">'+
-      stat('Moyenne / mois',fr(c.mean))+stat('Mois « normal » (médiane)',fr(c.median))+
-      stat('Part des dépenses',Math.round(c.share*100)+' %')+stat('Régularité',Math.round(c.regular*100)+' % des mois')+
-      stat('Achats / mois',(c.txs/c.months.length).toFixed(1))+stat('Montant moyen d\'un achat',fr(c.ticket))+'</div>'+
+      stat('Mois « normal » (médiane)',fr(c.median))+stat('Régularité',Math.round(c.regular*100)+' % des mois')+
+      stat('Part fixe (récurrentes)',fr(fixe)+' / mois')+stat('Part variable',fr(Math.max(c.mean-fixe,0))+' / mois')+
+      stat('Achats / mois',(c.txs/c.months.length).toFixed(1).replace('.',','))+stat('Montant moyen d\'un achat',fr(c.ticket))+'</div>'+
+    '<div class="ins"><span class="ic">📍</span><span>Ce mois-ci au '+td+' : <b>'+fr(nowAt)+'</b> · d\'habitude '+fr(usualAt)+' à cette date.</span></div>'+
+    '<div class="ins"><span class="ic">🗓️</span><span>Dans le mois : début '+Math.round(Math.max(th[0],0)/thS*100)+' % · milieu '+Math.round(Math.max(th[1],0)/thS*100)+' % · fin '+Math.round(Math.max(th[2],0)/thS*100)+' %.</span></div>'+
+    (top.length?'<div class="ins"><span class="ic">🧾</span><span>Achats habituels : '+top.map(x=>'<b>'+escH(x.t)+'</b> ('+x.n+'×, ~'+fr(x.s/x.n)+')').join(' · ')+'</span></div>':'')+
     '<div class="ins"><span class="ic">📅</span><span>'+season+'</span></div>'+
     (anomalies.length?'<div class="ins"><span class="ic">⚠️</span><span>Mois inhabituels : <b>'+anomalies.join(', ')+'</b>.</span></div>':'')+
     (c.trend!==null?'<div class="ins"><span class="ic">'+(c.trend>=0?'📈':'📉')+'</span><span>Tendance sur la période : '+(c.trend>0?'+':'−')+Math.abs(c.trend)+' %.</span></div>':'')+
@@ -1343,7 +1414,7 @@ function renderCharts(){
     html+='<div class="sec">'+
       '<div class="chart-top"><div class="chart-title">'+title+'</div>'+
         '<div class="rtoggle"><button class="'+(st.range===6?'on':'')+'" onclick="setChartRange(\''+id+'\',6)">6M</button><button class="'+(st.range===12?'on':'')+'" onclick="setChartRange(\''+id+'\',12)">12M</button></div></div>'+
-      '<div class="chart-ctrl"><div class="cnav"><button class="cnb" onclick="navChart(\''+id+'\',-1)">‹</button><button class="cnb" onclick="navChart(\''+id+'\',1)">›</button><span class="cperiod">'+win.label+'</span></div>'+filterSel+'</div>'+
+      '<div class="chart-ctrl"><div class="cnav">'+navBtn(st.nav>chartNavMin(st),'navChart(\''+id+'\',-1)','‹')+navBtn(st.nav<0,'navChart(\''+id+'\',1)','›')+'<span class="cperiod">'+win.label+'</span></div>'+filterSel+'</div>'+
       '<div class="chart-wrap"><canvas id="cv-'+id+'"></canvas></div></div>';
   });
   area.innerHTML=html;
@@ -1378,7 +1449,8 @@ function pendingMonthPlugin(months){
   }};
 }
 function setChartRange(id,r){if(chartState[id].range===r)return;chartState[id].range=r;chartState[id].nav=0;saveChartRanges();renderCharts();}
-function navChart(id,dir){chartState[id].nav+=dir;renderCharts();}
+function chartNavMin(st){const f=firstDataOff();return st.range===12?Math.floor((new Date().getMonth()+f)/12):f;}
+function navChart(id,dir){const st=chartState[id];st.nav=Math.max(chartNavMin(st),Math.min(0,st.nav+dir));renderCharts();}
 function setChartFilter(id,cat){chartState[id].filter=cat;renderCharts();}
 
 // ─── Add / Edit ───────────────────────────────
@@ -1543,12 +1615,15 @@ function renderHist(){
   if(!order.length){c.innerHTML='<div class="empty">Aucune entrée.</div>';return;}
   c.innerHTML=order.map(key=>{
     const g=grouped[key],sorted=[...g.items].sort((a,b)=>new Date(b.date)-new Date(a.date));
-    const depTotal=getRealDep(sorted).reduce((s,e)=>s+e.amount,0);
     const rembAmt=sorted.filter(e=>e.remb&&e.cat!=='revenu').reduce((s,e)=>s+e.amount,0);
+    // Total NET des dépenses du mois (= « Dépenses du mois » de l'accueil) : sorties − remboursements/entrées
+    const depTotal=getRealDep(sorted).reduce((s,e)=>s+e.amount,0)-rembAmt;
+    const _t=ymd(new Date()),aVenir=sorted.filter(e=>e.cat!=='revenu'&&!e._bon&&e.date>_t).reduce((s,e)=>s+(e.remb?-e.amount:e.amount),0);
+    const metaX=aVenir>0.004?' · '+fr(aVenir)+' à venir':''; // version condensée (le total est déjà net des entrées)
     const revAmt=sorted.filter(e=>e.cat==='revenu').reduce((s,e)=>s+e.amount,0);
     const sal=getIncBase(g.y,g.m),eco=sal>0?monthSaving(g.y,g.m):null; // inclut les revenus récurrents
     const border=eco!==null&&eco>0?'var(--te)':'var(--co)';
-    return '<div style="margin-bottom:18px"><div class="mhrow"><span class="mhtitle">'+g.lbl+'</span><span class="mhmeta">'+fa(depTotal)+(eco!==null?' · <span style="color:var(--te)">'+fa(eco)+' épargnés</span>':'')+'</span></div>'+
+    return '<div style="margin-bottom:18px"><div class="mhrow"><span class="mhtitle">'+g.lbl+'</span><span class="mhmeta">'+fa(depTotal)+'<span style="color:var(--mu)">'+metaX+'</span>'+(eco!==null?' · <span style="color:var(--te)">'+fa(eco)+' épargnés</span>':'')+'</span></div>'+
       '<div class="txlist" style="border-left:2.5px solid '+border+'">'+
       sorted.map(e=>{
         const cfg=CAT[e.cat]||CAT.autre,d=new Date(e.date);
@@ -2163,7 +2238,7 @@ function renewPeriod(k){
 // ── Revenus mensuels (Phase 10) : 3 mois visibles, flèches ‹ › pour remonter/avancer,
 // détail du mois choisi avec ⋯ (Modifier / Supprimer). Remplace la longue liste verticale.
 let incNavEnd=0,incSel=null; // incNavEnd = décalage (en mois) du DERNIER mois affiché par rapport à aujourd'hui
-function incNav(d){incNavEnd+=d;renderIncNav();}
+function incNav(d){incNavEnd=Math.max(Math.min(0,firstDataOff()+2),Math.min(0,incNavEnd+d));renderIncNav();}
 function incPick(k){incSel=k;renderIncNav();}
 function renderIncNav(){
   const el=document.getElementById('inc-list');if(!el)return;
@@ -2178,7 +2253,7 @@ function renderIncNav(){
   const detail=v
     ?'<div class="incrow" style="border-bottom:none;padding-bottom:2px"><div><div style="font-size:13px">Salaire · '+MONTHS[parseInt(m,10)-1]+' '+y+'</div></div><div style="display:flex;align-items:center;gap:8px"><span style="font-size:13px;font-weight:600;color:var(--te)">'+fa(v)+'</span><button class="txmenu" onclick="openIncAS(\''+incSel+'\',event)">···</button></div></div>'
     :'<div class="incrow" style="border-bottom:none;padding-bottom:2px"><div style="font-size:13px;color:var(--mu)">Aucun salaire en '+MONTHS[parseInt(m,10)-1]+' '+y+'</div><button class="smb" onclick="editInc(\''+incSel+'\')">+ Définir</button></div>';
-  el.innerHTML='<div style="display:flex;align-items:center;gap:6px"><button class="cnb" onclick="incNav(-3)">‹</button>'+keys.map(chip).join('')+'<button class="cnb" onclick="incNav(3)">›</button></div>'+detail;
+  el.innerHTML='<div style="display:flex;align-items:center;gap:6px">'+navBtn(incNavEnd-2>firstDataOff(),'incNav(-3)','‹')+keys.map(chip).join('')+navBtn(incNavEnd<0,'incNav(3)','›')+'</div>'+detail;
 }
 function openIncAS(k,ev){
   ev.stopPropagation();const close="document.getElementById('xincas').remove()";const[y,m]=k.split('-');
